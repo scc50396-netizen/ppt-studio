@@ -5,13 +5,61 @@ const VALID_LAYOUTS = ['cover', 'toc', 'section', 'dashboard', 'table', 'fourCol
 const VALID_ICONS = ['trend', 'rocket', 'shield', 'target', 'zap', 'award', 'users', 'bulb', 'layers', 'clock', 'chart', 'globe'];
 const VALID_CHARTS = ['groupedBar', 'line', 'doughnut', 'bar', 'pie'];
 
+// 4 套高频接单提示词风格引擎
+const PROMPT_STYLES = [
+  {
+    id: 'report',
+    name: '📊 大厂/咨询高密汇报',
+    desc: '150~320字/页 · 结论先行 · 表格/仪表盘密集',
+    role: '顶级大厂/咨询风商业 PPT 策划师（高密阅读型工作汇报风格）',
+    rules: `1. 必须包含封面(cover)、目录(toc)、结尾(ending)，中间页优先使用高密数据版式：dashboard（经营仪表盘）、table（商务数据表格）、fourCol（四栏/四季度）、chart（多系列对比图）。
+2. 每页主标题采用“模块名：一句话核心结论”格式；正文用换行分点，单页总字数控制在 150~320 字，信息充实有业务颗粒度。
+3. 必须用 **关键词** 包裹核心数字、同比增速或关键结论（系统会自动加粗标红）。
+4. 每页在 notes 字段附带 60~100 字的精炼汇报口播提示。`,
+  },
+  {
+    id: 'thesis',
+    name: '🎓 毕业论文/学术答辩',
+    desc: '学术严谨 · 逻辑闭环 · 自动生成答辩逐字稿',
+    role: '高校本科/硕士毕业论文答辩 PPT 专家',
+    rules: `1. 严格遵循学术答辩逻辑拆解：封面(cover) → 目录(toc) → 研究背景与意义 → 国内外现状/痛点 → 研究方法与框架 → 核心模型/实验数据(优先用 table/dashboard/chart 呈现量化对比) → 结论与展望 → 致谢(ending)。
+2. 语言客观严谨、术语准确，提炼论文核心论点与实测数据，避免大段照抄原文，单页总字数控制在 140~260 字。
+3. 用 **关键词** 标红核心实验指标、创新点或提升幅度。
+4. 必须在每页的 notes 字段撰写 80~150 字的自然流畅【答辩口播逐字稿】，方便学生直接照着念。`,
+  },
+  {
+    id: 'pitch',
+    name: '🚀 商业路演/融资推介',
+    desc: '60~120字/页 · 大字报冲击力 · 强说服力',
+    role: '顶级投资机构路演 BP 与发布会 PPT 策划师',
+    rules: `1. 按商业路演黄金结构拆解：封面(cover) → 市场痛点(compare) → 核心解决方案(cards/imageText) → 市场规模与增长(chart/metrics) → 商业模式与壁垒(fourCol) → 里程碑规划(timeline) → 融资/合作结尾(ending)。
+2. 遵循“演讲极简原则”：单页总字数严格控制在 60~120 字，短句金句化，留白充足，绝不堆砌长段落。
+3. 优先使用 metrics（核心大数字）、compare（痛点vs方案）、cards（三栏图标）突出视觉冲击力，并用 **关键词** 标红核心变现数据与优势。
+4. 在每页 notes 字段写入 80~120 字的感染力路演演讲词。`,
+  },
+  {
+    id: 'gov',
+    name: '🏛️ 政务/党建/国企汇报',
+    desc: '措辞庄重 · 排比工整 · 突出成效与规划',
+    role: '资深政府机关及大型国企公文汇报 PPT 策划师',
+    rules: `1. 结构稳重规范：封面(cover) → 目录(toc) → 总体成效回顾(dashboard/metrics) → 重点工作推进(fourCol/cards) → 量化指标完成情况(table/chart) → 存在不足与下步举措(compare/timeline) → 结尾(ending)。
+2. 措辞严谨庄重、站位清晰，卡片小标题尽量采用字数对称的排比短语（如“强化统筹、聚焦发力、提质增效”），单页总字数 150~280 字。
+3. 用 **关键词** 标红关键政绩数据、完成率与核心抓手。
+4. 在每页 notes 字段撰写 60~100 字的正式汇报发言稿。`,
+  },
+];
+
 export default function DocToPptModal({ onClose, onGenerate }) {
   const [rawText, setRawText] = useState('');
   const [fileName, setFileName] = useState('');
   const [slideCount, setSlideCount] = useState(10);
+  const [styleId, setStyleId] = useState('report');
+  const [customReq, setCustomReq] = useState('');
   const [jsonInput, setJsonInput] = useState('');
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef(null);
+
+  const activeStyle = PROMPT_STYLES.find((s) => s.id === styleId) || PROMPT_STYLES[0];
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -35,32 +83,36 @@ export default function DocToPptModal({ onClose, onGenerate }) {
   const handleCopyPrompt = async () => {
     if (!rawText.trim()) return alert('请先上传 Word/TXT 文档，或在下方粘贴文案！');
 
-    const prompt = `你是一位顶级大厂/咨询风商业 PPT 策划师（旁门左道汇报风格）。请将以下文档拆解为一套约 ${slideCount} 页的高密工作汇报 PPT，严格按下方 JSON 格式输出（只输出纯 JSON 代码块，不要多余解释）。
+    const extraLine = customReq.trim() ? `\n【客户额外定制要求（必须严格满足）】\n${customReq.trim()}\n` : '';
 
-【排版与高密汇报规范】
-1. 必须包含封面(cover)、目录(toc)、结尾(ending)，中间页优先使用高密汇报版式：
-   - dashboard（经营仪表盘：顶部3个KPI + 下方多系列图表 + 右侧2条归因）
-   - table（商务数据表格：表头+多行数据 + 下方2条结论）
-   - fourCol（四栏/四季度：顶部标题块 + 多行要点 + 底部数据胶囊 badge）
-   - chart（数据图表页，chartType 可选 groupedBar双柱对比 / line折线 / doughnut环形 / bar单柱 / pie饼图）
-   - compare（左右对比）、cards（三栏图标卡片）、timeline（时间轴）、metrics（核心大数字）、imageText（左图右文）、section（章节过渡）。
-2. 正文与卡片支持用 **关键词** 包裹核心数字或结论（系统会自动加粗标红），单页总字数控制在 150~320 字（信息充实但结构清晰，用换行分点）。
-3. icon 字段只能从以下选：${VALID_ICONS.join(', ')}。
+    const prompt = `你是一位${activeStyle.role}。请将以下文档拆解为一套约 ${slideCount} 页的 PPT，严格按下方 JSON 格式输出（只输出纯 JSON 代码块，不要多余解释）。
 
+【当前选定风格：${activeStyle.name} · 排版与文案规范】
+${activeStyle.rules}
+5. 可用版式(layout)：cover, toc, section, dashboard, table, fourCol, chart, compare, imageText, cards, timeline, metrics, ending。
+6. 图表类型(chartType)：groupedBar(双柱对比), line(折线), doughnut(环形), bar(单柱), pie(饼图)。
+7. 图标(icon)只能从以下选：${VALID_ICONS.join(', ')}。
+${extraLine}
 【JSON 输出格式示例】
 \`\`\`json
 {
   "projectName": "提炼的项目/汇报名称",
   "slides": [
-    { "layout": "cover", "title": "2026年度工作述职与经营汇报", "subtitle": "汇报人：XXX · 日期" },
+    {
+      "layout": "cover",
+      "title": "主标题",
+      "subtitle": "副标题 · 汇报人 · 日期",
+      "notes": "本页开场口播稿..."
+    },
     {
       "layout": "dashboard",
-      "title": "年度经营总览：核心指标实现双位数高质量增长",
-      "subtitle": "全年签约与净利润均超额达成目标",
+      "title": "模块名：一句话核心结论",
+      "subtitle": "补充说明",
+      "notes": "本页数据解读口播稿...",
       "kpis": [
-        { "label": "全年签约额", "value": "1023亿", "trend": "同比 +30.0%" },
-        { "label": "创造净利润", "value": "141.4亿", "trend": "同比 +37.4%" },
-        { "label": "滚动回款率", "value": "96.3%", "trend": "提升 +2.5pt" }
+        { "label": "指标一", "value": "1023亿", "trend": "同比 +30.0%" },
+        { "label": "指标二", "value": "141.4亿", "trend": "同比 +37.4%" },
+        { "label": "指标三", "value": "96.3%", "trend": "提升 +2.5pt" }
       ],
       "chartType": "groupedBar",
       "chartSeriesName": "2025年",
@@ -68,40 +120,40 @@ export default function DocToPptModal({ onClose, onGenerate }) {
       "chartUnit": "单位：亿元",
       "chartData": [
         { "label": "Q1", "value": 210, "value2": 165 },
-        { "label": "Q2", "value": 255, "value2": 190 },
-        { "label": "Q3", "value": 268, "value2": 205 },
-        { "label": "Q4", "value": 290, "value2": 227 }
+        { "label": "Q2", "value": 255, "value2": 190 }
       ],
       "items": [
-        { "head": "增长引擎", "body": "Q4单季签约突破 **290亿**，较去年同期增长 **27.8%**。" },
-        { "head": "利润结构", "body": "高毛利产品占比提升至 **42%**，带动净利增速高于营收。" }
+        { "head": "归因一", "body": "核心数据突破 **290亿**，同比增长 **+27.8%**。" },
+        { "head": "归因二", "body": "高毛利业务占比提升至 **42%**。" }
       ]
     },
     {
       "layout": "table",
-      "title": "各板块业绩明细：核心业务全面跑赢预算",
-      "subtitle": "重点指标同比均保持正增长",
+      "title": "数据明细对比",
+      "subtitle": "核心指标对比",
+      "notes": "本页表格解读...",
       "tableData": {
-        "headers": ["业务板块", "2024实际", "2025实际", "同比增长"],
+        "headers": ["维度", "基准值", "优化值", "核心提升"],
         "rows": [
-          ["华东大区", "320亿", "415亿", "+29.7%"],
-          ["华南大区", "260亿", "348亿", "+33.8%"]
+          ["指标A", "100", "135", "+35%"],
+          ["指标B", "80%", "95%", "+15pt"]
         ]
       },
       "items": [
-        { "head": "区域亮点", "body": "华南大区增速达 **+33.8%**，位居全国首位。" },
-        { "head": "改进方向", "body": "需进一步提升华北区新客转化率至 **25%** 以上。" }
+        { "head": "核心结论一", "body": "指标A大幅提升 **+35%**。" },
+        { "head": "核心结论二", "body": "指标B达到 **95%** 行业领先水平。" }
       ]
     },
     {
       "layout": "fourCol",
-      "title": "节点营销复盘：四大战役稳固全年业绩",
-      "subtitle": "围绕大促节点形成标准化打法",
+      "title": "四大核心模块拆解",
+      "subtitle": "结构化推进路径",
+      "notes": "本页四栏解读...",
       "items": [
-        { "head": "Q1 新春大促", "body": "• 聚焦会员专享复购\\n• 会员消费占比达 **65%**", "badge": "GMV 3.25亿" },
-        { "head": "Q2 618大促", "body": "• 跨界联名新品首发\\n• 社媒总曝光超 **2亿**", "badge": "GMV 3.85亿" },
-        { "head": "Q3 双11预热", "body": "• 全品类直播矩阵带货\\n• 新增转化率达 **30%**", "badge": "GMV 3.20亿" },
-        { "head": "Q4 年终清仓", "body": "• 老客裂变与礼盒清仓\\n• 周转率提升 **40%**", "badge": "GMV 2.10亿" }
+        { "head": "模块一", "body": "• 要点1\\n• 核心指标达 **65%**", "badge": "关键成果" },
+        { "head": "模块二", "body": "• 要点1\\n• 核心指标达 **40%**", "badge": "关键成果" },
+        { "head": "模块三", "body": "• 要点1\\n• 核心指标达 **30%**", "badge": "关键成果" },
+        { "head": "模块四", "body": "• 要点1\\n• 核心指标达 **20%**", "badge": "关键成果" }
       ]
     }
   ]
@@ -191,7 +243,10 @@ ${rawText.slice(0, 12000)}`;
           layout,
           title: String(s.title || '未命名标题'),
           subtitle: String(s.subtitle || ''),
+          notes: String(s.notes || ''),
           image: '',
+          fontScale: 1,
+          reverseLayout: false,
           kpis,
           chartType: VALID_CHARTS.includes(s.chartType) ? s.chartType : 'groupedBar',
           chartSeriesName: String(s.chartSeriesName || '2025年'),
@@ -203,26 +258,61 @@ ${rawText.slice(0, 12000)}`;
         };
       });
 
-      onGenerate(normalizedSlides, parsed.projectName || fileName || 'AI生成汇报方案');
+      onGenerate(normalizedSlides, parsed.projectName || fileName || 'AI生成演示方案');
     } catch (err) {
       alert(`JSON 解析失败，请确认粘贴的是完整的 AI 输出内容。\n错误详情：${err.message}`);
     }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 820, maxHeight: '90vh', background: '#1e293b', border: '1px solid #38bdf8', borderRadius: 12, padding: 22, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', color: '#f8fafc' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 840, maxHeight: '92vh', background: '#1e293b', border: '1px solid #38bdf8', borderRadius: 12, padding: 22, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', color: '#f8fafc' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 'bold', color: '#38bdf8' }}>✨ 文档自动生成高密汇报 PPT</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>支持自动拆解为：经营仪表盘、原生表格、四栏季度页、多系列图表及重点标红</div>
+            <div style={{ fontSize: 18, fontWeight: 'bold', color: '#38bdf8' }}>✨ 文档一键生成 PPT（多风格提示词引擎）</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>按客户场景切换输出风格与字数密度，并自动同步生成每页演讲者逐字稿</div>
           </div>
           <button onClick={onClose} style={{ background: '#334155', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>关闭</button>
         </div>
 
+        {/* 新增：接单文本输出风格选择器 */}
+        <div style={{ padding: 12, background: '#0f172a', borderRadius: 8, border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e2e8f0' }}>第 1 步：选择文本输出风格（决定字数密度、语气与版式倾向）</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {PROMPT_STYLES.map((st) => {
+              const active = styleId === st.id;
+              return (
+                <div
+                  key={st.id}
+                  onClick={() => setStyleId(st.id)}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    background: active ? '#172554' : '#1e293b',
+                    border: active ? '1.5px solid #38bdf8' : '1px solid #334155',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 'bold', color: active ? '#38bdf8' : '#f8fafc' }}>{st.name}</div>
+                  <div style={{ fontSize: 10.5, color: '#94a3b8', lineHeight: 1.4 }}>{st.desc}</div>
+                </div>
+              );
+            })}
+          </div>
+          <input
+            value={customReq}
+            onChange={(e) => setCustomReq(e.target.value)}
+            placeholder="选填：输入客户额外要求（如：重点突出降本增效、必须包含SWOT分析、语气简洁有力）"
+            style={{ width: '100%', padding: '7px 10px', background: '#1e293b', color: '#fbbf24', border: '1px solid #475569', borderRadius: 6, fontSize: 12, boxSizing: 'border-box' }}
+          />
+        </div>
+
         <div style={{ padding: 12, background: '#0f172a', borderRadius: 8, border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 'bold', color: '#e2e8f0' }}>第 1 步：导入客户文档（支持 .docx / .txt / .md）</span>
+            <span style={{ fontSize: 13, fontWeight: 'bold', color: '#e2e8f0' }}>第 2 步：导入客户文档（支持 .docx / .txt / .md）</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <label style={{ fontSize: 12, color: '#94a3b8' }}>
                 目标页数：
@@ -234,17 +324,17 @@ ${rawText.slice(0, 12000)}`;
               <input ref={fileInputRef} type="file" accept=".docx,.txt,.md" onChange={handleFileUpload} style={{ display: 'none' }} />
             </div>
           </div>
-          <textarea rows={5} value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="上传 Word (.docx) / TXT 文件，或直接把客户发来的长文案粘贴到这里..." style={{ width: '100%', padding: 8, background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: 6, fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }} />
+          <textarea rows={4} value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="上传 Word (.docx) / TXT 文件，或直接把客户发来的长文案粘贴到这里..." style={{ width: '100%', padding: 8, background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: 6, fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }} />
           <button onClick={handleCopyPrompt} style={{ padding: 10, background: copied ? '#059669' : '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-            {copied ? '✅ 已复制高密汇报提示词！去发给 AI 后把 JSON 贴在下方' : '📋 第 2 步：一键复制专属 AI 提示词（含文档内容）'}
+            {copied ? `✅ 已复制【${activeStyle.name}】专属提示词！发给 AI 后把 JSON 贴在下方` : `📋 复制【${activeStyle.name}】专属 AI 提示词`}
           </button>
         </div>
 
         <div style={{ padding: 12, background: '#0f172a', borderRadius: 8, border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e2e8f0' }}>第 3 步：粘贴 AI 返回的 JSON，一键生成全套 PPT</div>
-          <textarea rows={6} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} placeholder='把 AI 回复的整段内容（包含 ```json ... ``` 也没关系）直接粘贴到这里...' style={{ width: '100%', padding: 8, background: '#1e293b', color: '#4ade80', border: '1px solid #334155', borderRadius: 6, fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box', resize: 'vertical' }} />
+          <div style={{ fontSize: 13, fontWeight: 'bold', color: '#e2e8f0' }}>第 3 步：粘贴 AI 返回的 JSON，一键生成全套 PPT 与逐字稿</div>
+          <textarea rows={5} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} placeholder='把 AI 回复的整段内容（包含 ```json ... ``` 也没关系）直接粘贴到这里...' style={{ width: '100%', padding: 8, background: '#1e293b', color: '#4ade80', border: '1px solid #334155', borderRadius: 6, fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box', resize: 'vertical' }} />
           <button onClick={handleParseAndGenerate} style={{ padding: 12, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
-            🚀 一键生成全套幻灯片（随后手动精修）
+            🚀 一键生成全套幻灯片（含演讲者备注）
           </button>
         </div>
       </div>

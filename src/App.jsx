@@ -1,4 +1,4 @@
- import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import PptxGenJS from 'pptxgenjs';
 import DocToPptModal from './DocToPptModal';
 import TemplateModal from './TemplateModal';
@@ -11,9 +11,9 @@ const SAFE_FONTS = [
   { name: '思源黑体（免费商用 · 替代微软雅黑首选）', value: 'Noto Sans SC' },
   { name: '思源宋体（免费商用 · 政务/高端汇报）', value: 'Noto Serif SC' },
   { name: '站酷小薇体（免费商用 · 品牌/文艺）', value: 'ZCOOL XiaoWei' },
-  { name: '阿里巴巴普惠体（免费商用 · 需本机已安装）', value: 'Alibaba PuHuiTi 3.0' },
-  { name: '鸿蒙黑体（免费商用 · 需本机已安装）', value: 'HarmonyOS Sans SC' },
-  { name: '得意黑（免费商用 · 需本机已安装）', value: 'Smiley Sans' },
+  { name: '黑体（论文答辩常用 · 系统字体）', value: 'SimHei' },
+  { name: '微软雅黑（论文答辩常用 · 系统字体）', value: 'Microsoft YaHei' },
+  { name: '宋体（文科/法学答辩 · 系统字体）', value: 'SimSun' },
 ];
 
 const THEMES = [
@@ -93,7 +93,7 @@ const generateTexturedBgDataURL = (theme, isDarkCover = false) => {
   c.width = 1280;
   c.height = 720;
   const ctx = c.getContext('2d');
-  const bgStart = isDarkCover ? theme.coverBgColor || '#0A2540' : theme.bg;
+  const bgStart = isDarkCover ? theme.coverBgColor || theme.primary || '#0A2540' : theme.bg;
   const bgStop = isDarkCover ? theme.coverBgEnd || '#051526' : theme.bgEnd || theme.bg;
   const grad = ctx.createLinearGradient(0, 0, 1280, 720);
   grad.addColorStop(0, bgStart);
@@ -123,6 +123,9 @@ const INITIAL_SLIDES = [
     title: '2026 年度经营业绩与工作汇报',
     subtitle: '抗住压力，实现高质量增长 · 汇报人：您的名字',
     image: '',
+    fontScale: 1,
+    reverseLayout: false,
+    notes: '各位领导、同事大家好，下面由我为大家汇报2026年度经营业绩与重点工作。',
     kpis: DEFAULT_KPIS,
     chartType: 'groupedBar',
     chartSeriesName: '2025年',
@@ -141,8 +144,11 @@ const INITIAL_SLIDES = [
     id: 2,
     layout: 'dashboard',
     title: '经营数据仪表盘：核心指标连续四季度双位数增长',
-    subtitle: '顶部 KPI 总览 + 下方双系列对比柱状图（可一键切折线图/环形图）+ 右侧核心归因',
+    subtitle: '顶部 KPI 总览 + 下方双系列对比柱状图 + 右侧核心归因',
     image: '',
+    fontScale: 1,
+    reverseLayout: false,
+    notes: '',
     kpis: DEFAULT_KPIS,
     chartType: 'groupedBar',
     chartSeriesName: '2025年',
@@ -166,8 +172,11 @@ const INITIAL_SLIDES = [
     id: 3,
     layout: 'table',
     title: '整体经营数据回顾：2025年核心指标全面超额达成',
-    subtitle: '使用 **双星号** 可自动标红核心数字，导出 .pptx 后表格 100% 原生可编辑',
+    subtitle: '支持 Excel 一键粘贴导入表格，导出 .pptx 后 100% 原生可编辑',
     image: '',
+    fontScale: 1,
+    reverseLayout: false,
+    notes: '',
     kpis: DEFAULT_KPIS,
     chartType: 'line',
     chartSeriesName: '2025年',
@@ -188,6 +197,9 @@ const INITIAL_SLIDES = [
     title: '目标达成回顾：四大节点营销屡创新高，稳固全年业绩',
     subtitle: '大厂工作汇报高频四栏结构（顶部深蓝/正红标题块 + 多行要点 + 底部数据胶囊）',
     image: '',
+    fontScale: 1,
+    reverseLayout: false,
+    notes: '',
     kpis: DEFAULT_KPIS,
     chartType: 'doughnut',
     chartSeriesName: '渠道占比',
@@ -230,7 +242,10 @@ export default function App() {
 
   const [projectName, setProjectName] = useState(saved?.projectName || '年度经营汇报方案');
   const [slides, setSlides] = useState(saved?.slides || INITIAL_SLIDES);
+  const [past, setPast] = useState([]);
+  const [future, setFuture] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
+
   const [themeId, setThemeId] = useState(saved?.themeId || 'redblue');
   const [customPrimary, setCustomPrimary] = useState(saved?.customPrimary || '');
   const [brandLogo, setBrandLogo] = useState(saved?.brandLogo || '');
@@ -238,7 +253,10 @@ export default function App() {
   const [densityMode, setDensityMode] = useState(saved?.densityMode || 'report');
   const [showSafeGuide, setShowSafeGuide] = useState(true);
   const [showFooter, setShowFooter] = useState(saved?.showFooter ?? true);
+  const [headerTag, setHeaderTag] = useState(saved?.headerTag || '');
+  const [sourceNote, setSourceNote] = useState(saved?.sourceNote || '');
   const [watermarkText, setWatermarkText] = useState(saved?.watermarkText || '初稿预览 · 付尾款后去水印');
+
   const [toastMsg, setToastMsg] = useState('');
   const [saveStatus, setSaveStatus] = useState(saved ? '已恢复上次存档' : '自动存档已开启');
   const [isExportingLong, setIsExportingLong] = useState(false);
@@ -246,6 +264,9 @@ export default function App() {
   const [coverBg, setCoverBg] = useState(saved?.coverBg || '');
   const [contentBg, setContentBg] = useState(saved?.contentBg || '');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [showExcelPaste, setShowExcelPaste] = useState(false);
+  const [excelRawText, setExcelRawText] = useState('');
 
   const logoInputRef = useRef(null);
   const slideImgInputRef = useRef(null);
@@ -258,41 +279,73 @@ export default function App() {
   const currentTableData = currentSlide.tableData && currentSlide.tableData.headers ? currentSlide.tableData : DEFAULT_TABLE_DATA;
   const currentKpis = currentSlide.kpis && currentSlide.kpis.length >= 3 ? currentSlide.kpis : DEFAULT_KPIS;
   const currentChartType = currentSlide.chartType || 'groupedBar';
+  const currentFontScale = currentSlide.fontScale || 1;
+  const isReversed = Boolean(currentSlide.reverseLayout);
   const showChartEditor = currentSlide.layout === 'chart' || currentSlide.layout === 'dashboard';
   const maxCharLimit = densityMode === 'report' ? 380 : 120;
 
   const isContentSlide = !['cover', 'section', 'ending'].includes(currentSlide.layout);
-  const isSplitDarkCover = theme.isSplit && !isContentSlide;
-  const activeText = isSplitDarkCover ? '#FFFFFF' : theme.text;
-  const activeSubText = isSplitDarkCover ? '#CBD5E1' : theme.subText;
+  const isDarkCover = !isContentSlide && (theme.isSplit || theme.id === 'minimal');
+  const activeText = isDarkCover ? '#FFFFFF' : theme.text;
+  const activeSubText = isDarkCover ? '#CBD5E1' : theme.subText;
 
   const cardShadow = theme.isDark
     ? '0 10px 28px rgba(0, 0, 0, 0.42)'
     : '0 6px 20px rgba(15, 23, 42, 0.06), 0 1px 4px rgba(15, 23, 42, 0.04)';
 
-  const canvasBackgroundCss = isSplitDarkCover
-    ? `radial-gradient(circle at 86% 18%, ${hexToRgba(theme.accent, 0.22)}, transparent 45%), linear-gradient(135deg, ${theme.coverBgColor} 0%, ${theme.coverBgEnd} 100%)`
+  const canvasBackgroundCss = isDarkCover
+    ? `radial-gradient(circle at 86% 18%, ${hexToRgba(theme.accent, 0.22)}, transparent 45%), linear-gradient(135deg, ${theme.coverBgColor || theme.primary} 0%, ${theme.coverBgEnd || '#051526'} 100%)`
     : theme.isSplit
       ? '#FFFFFF'
       : `radial-gradient(circle at 88% 12%, ${hexToRgba(theme.primary, theme.isDark ? 0.16 : 0.1)}, transparent 44%), linear-gradient(135deg, ${theme.bg} 0%, ${theme.bgEnd} 100%)`;
 
+  // ================= 撤销 / 重做历史栈 =================
+  const commitSlides = (updater) => {
+    setSlides((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      setPast((p) => [...p.slice(-19), prev]);
+      setFuture([]);
+      return next;
+    });
+  };
+
+  const handleUndo = () => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    setPast((p) => p.slice(0, -1));
+    setFuture((f) => [slides, ...f.slice(0, 19)]);
+    setSlides(previous);
+    setCurrentIdx((idx) => Math.min(idx, previous.length - 1));
+    showToast('↩️ 已撤销上一步操作');
+  };
+
+  const handleRedo = () => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setFuture((f) => f.slice(1));
+    setPast((p) => [...p.slice(-19), slides]);
+    setSlides(next);
+    setCurrentIdx((idx) => Math.min(idx, next.length - 1));
+    showToast('↪️ 已重做');
+  };
+
   useEffect(() => {
     try {
-      const payload = { version: 5, projectName, themeId, customPrimary, brandLogo, fontFamily, densityMode, showFooter, coverBg, contentBg, watermarkText, slides };
+      const payload = { version: 6, projectName, themeId, customPrimary, brandLogo, fontFamily, densityMode, showFooter, headerTag, sourceNote, coverBg, contentBg, watermarkText, slides };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       setSaveStatus(`已自动保存 ${new Date().toTimeString().slice(0, 8)}`);
     } catch {
       setSaveStatus('⚠️ 图片过大，请点「导出订单」手动备份');
     }
-  }, [projectName, slides, themeId, customPrimary, brandLogo, fontFamily, densityMode, showFooter, coverBg, contentBg, watermarkText]);
+  }, [projectName, slides, themeId, customPrimary, brandLogo, fontFamily, densityMode, showFooter, headerTag, sourceNote, coverBg, contentBg, watermarkText]);
 
   const showToast = (msg) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg((prev) => (prev === msg ? '' : prev)), 5000);
+    setTimeout(() => setToastMsg((prev) => (prev === msg ? '' : prev)), 4500);
   };
 
   const handleExportProjectJSON = () => {
-    const payload = { version: 5, exportedAt: new Date().toISOString(), projectName, themeId, customPrimary, brandLogo, fontFamily, densityMode, showFooter, coverBg, contentBg, watermarkText, slides };
+    const payload = { version: 6, exportedAt: new Date().toISOString(), projectName, themeId, customPrimary, brandLogo, fontFamily, densityMode, showFooter, headerTag, sourceNote, coverBg, contentBg, watermarkText, slides };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -310,13 +363,15 @@ export default function App() {
         const data = JSON.parse(ev.target.result);
         if (!Array.isArray(data.slides) || data.slides.length === 0) throw new Error('无效文件');
         setProjectName(data.projectName || file.name.replace(/\.json$/i, ''));
-        setSlides(data.slides);
+        commitSlides(data.slides);
         setThemeId(data.themeId || 'redblue');
         setCustomPrimary(data.customPrimary || '');
         setBrandLogo(data.brandLogo || '');
         setFontFamily(data.fontFamily || 'Noto Sans SC');
         if (data.densityMode) setDensityMode(data.densityMode);
         if (typeof data.showFooter === 'boolean') setShowFooter(data.showFooter);
+        setHeaderTag(data.headerTag || '');
+        setSourceNote(data.sourceNote || '');
         setCoverBg(data.coverBg || '');
         setContentBg(data.contentBg || '');
         setWatermarkText(data.watermarkText || '初稿预览 · 付尾款后去水印');
@@ -331,21 +386,23 @@ export default function App() {
   };
 
   const handleResetProject = () => {
-    if (!window.confirm('确定要新建空白汇报订单吗？\n（当前未导出 .json 的内容将被重置为含仪表盘/表格/四栏的新模板）')) return;
+    if (!window.confirm('确定要新建空白汇报订单吗？\n（当前未导出 .json 的内容将被重置为默认模板）')) return;
     setProjectName('年度经营汇报方案');
-    setSlides(INITIAL_SLIDES);
+    commitSlides(INITIAL_SLIDES);
     setThemeId('redblue');
     setCustomPrimary('');
     setBrandLogo('');
+    setHeaderTag('');
+    setSourceNote('');
     setCoverBg('');
     setContentBg('');
     setFontFamily('Noto Sans SC');
     setCurrentIdx(0);
-    showToast('✨ 已重置为全新红蓝汇报模板（含经营仪表盘、双系列图表、表格与四栏页）。');
+    showToast('✨ 已重置为全新红蓝汇报模板。');
   };
 
   const updateSlide = (patch) => {
-    setSlides((prev) => prev.map((s, idx) => (idx === currentIdx ? { ...s, ...patch } : s)));
+    commitSlides((prev) => prev.map((s, idx) => (idx === currentIdx ? { ...s, ...patch } : s)));
   };
 
   const updateItem = (itemIdx, field, val) => {
@@ -360,7 +417,36 @@ export default function App() {
     updateSlide({ kpis: nextKpis });
   };
 
-  // ================= 表格数据编辑 =================
+  // ================= Excel / WPS 一键粘贴解析 =================
+  const handleApplyExcelPaste = (mode) => {
+    const lines = excelRawText.trim().split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return alert('请至少粘贴 2 行数据（直接从 Excel 或 WPS 表格复制区域即可）');
+    const matrix = lines.map((line) => line.split(/\t|,/).map((cell) => cell.trim()));
+
+    if (mode === 'table') {
+      const headers = matrix[0].slice(0, 6);
+      const rows = matrix.slice(1, 8).map((r) => headers.map((_, ci) => r[ci] ?? '-'));
+      updateSlide({ tableData: { headers, rows } });
+      showToast(`📋 已从 Excel 导入 ${rows.length} 行 × ${headers.length} 列表格！`);
+    } else {
+      const hasHeader = isNaN(Number(matrix[0][1]));
+      const dataLines = hasHeader ? matrix.slice(1, 7) : matrix.slice(0, 6);
+      const chartData = dataLines.map((r) => ({
+        label: r[0] || '项',
+        value: Number(String(r[1] || '0').replace(/[^\d.-]/g, '')) || 0,
+        value2: r[2] !== undefined ? Number(String(r[2]).replace(/[^\d.-]/g, '')) || 0 : 0,
+      }));
+      const patch = { chartData };
+      if (hasHeader && matrix[0][1]) patch.chartSeriesName = matrix[0][1];
+      if (hasHeader && matrix[0][2]) patch.chartSeriesName2 = matrix[0][2];
+      updateSlide(patch);
+      showToast(`📊 已从 Excel 导入 ${chartData.length} 组图表数据！`);
+    }
+    setExcelRawText('');
+    setShowExcelPaste(false);
+  };
+
+  // ================= 表格与图表编辑 =================
   const updateTableHeader = (colIdx, val) => {
     const headers = currentTableData.headers.map((h, i) => (i === colIdx ? val : h));
     updateSlide({ tableData: { ...currentTableData, headers } });
@@ -391,11 +477,8 @@ export default function App() {
     updateSlide({ tableData: { headers: currentTableData.headers.slice(0, -1), rows: currentTableData.rows.map((r) => r.slice(0, -1)) } });
   };
 
-  // ================= 图表数据编辑 =================
   const updateChartRow = (rowIdx, field, val) => {
-    const nextData = currentChartData.map((row, i) =>
-      i === rowIdx ? { ...row, [field]: field === 'label' ? val : Number(val) } : row
-    );
+    const nextData = currentChartData.map((row, i) => (i === rowIdx ? { ...row, [field]: field === 'label' ? val : Number(val) } : row));
     updateSlide({ chartData: nextData });
   };
 
@@ -416,6 +499,9 @@ export default function App() {
       title: layout === 'dashboard' ? '经营数据仪表盘：核心指标稳步增长' : layout === 'table' ? '经营数据汇总表' : '点击输入本页核心结论标题',
       subtitle: layout === 'section' ? 'PART 01' : '支持使用 **双星号** 自动加粗标红核心数据',
       image: '',
+      fontScale: 1,
+      reverseLayout: false,
+      notes: '',
       kpis: DEFAULT_KPIS.map((k) => ({ ...k })),
       chartType: 'groupedBar',
       chartSeriesName: '2025年',
@@ -430,14 +516,14 @@ export default function App() {
         { head: '要点四', body: '• 全年目标超额完成', icon: 'shield', badge: '达成率 120%' },
       ],
     };
-    setSlides((prev) => [...prev, newSlide]);
+    commitSlides((prev) => [...prev, newSlide]);
     setCurrentIdx(slides.length);
   };
 
   const moveSlide = (idx, direction) => {
     const targetIdx = idx + direction;
     if (targetIdx < 0 || targetIdx >= slides.length) return;
-    setSlides((prev) => {
+    commitSlides((prev) => {
       const next = [...prev];
       const [moved] = next.splice(idx, 1);
       next.splice(targetIdx, 0, moved);
@@ -458,7 +544,7 @@ export default function App() {
       chartData: (source.chartData || DEFAULT_CHART_DATA).map((d) => ({ ...d })),
       tableData: source.tableData ? { headers: [...source.tableData.headers], rows: source.tableData.rows.map((r) => [...r]) } : DEFAULT_TABLE_DATA,
     };
-    setSlides((prev) => {
+    commitSlides((prev) => {
       const next = [...prev];
       next.splice(idx + 1, 0, cloned);
       return next;
@@ -469,7 +555,7 @@ export default function App() {
 
   const deleteSlide = (idx) => {
     if (slides.length <= 1) return alert('至少需要保留 1 页幻灯片');
-    setSlides((prev) => prev.filter((_, i) => i !== idx));
+    commitSlides((prev) => prev.filter((_, i) => i !== idx));
     setCurrentIdx(Math.max(0, idx - 1));
   };
 
@@ -479,7 +565,7 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       setBrandLogo(ev.target.result);
-      showToast('🛡️ 合规提醒：已上传客户 Logo，请确认该 Logo 为客户官方授权提供。');
+      showToast('🛡️ 合规提醒：已上传客户 Logo，请确认已获官方授权。');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -491,7 +577,7 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       updateSlide({ image: ev.target.result });
-      showToast('🛡️ 图片合规提醒：请确认图片为客户自供或无版权风险。');
+      showToast('🛡️ 图片合规提醒：请确认图片无版权风险。');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -505,6 +591,7 @@ export default function App() {
   };
 
   const supportsIcons = (layout) => ['cards', 'imageText'].includes(layout);
+  const supportsMirror = (layout) => ['imageText', 'chart', 'dashboard'].includes(layout);
 
   const analyzeSlideCompliance = (slide) => {
     const warnings = [];
@@ -518,7 +605,7 @@ export default function App() {
 
     if (charCount > maxCharLimit) warnings.push({ level: 'warn', msg: `字数超出当前模式建议（${charCount} / ${maxCharLimit} 字）` });
     const hitSensitive = SENSITIVE_KEYWORDS.filter((kw) => allText.includes(kw));
-    if (hitSensitive.length > 0) warnings.push({ level: 'danger', msg: `检测到敏感词「${hitSensitive.join('、')}」：严禁网图搜地图/国旗，必须使用自然资源部标准带审图号素材！` });
+    if (hitSensitive.length > 0) warnings.push({ level: 'danger', msg: `检测到敏感词「${hitSensitive.join('、')}」：严禁网图搜地图/国旗，必须使用自然资源部标准素材！` });
     if (slide.layout === 'imageText' && !slide.image) warnings.push({ level: 'info', msg: '当前为「左图右文」版式，尚未上传配图。' });
     if (allText.includes('点击输入') || allText.includes('您的名字')) warnings.push({ level: 'info', msg: '包含未替换的默认占位文字，交付前请修改。' });
 
@@ -526,258 +613,264 @@ export default function App() {
   };
 
   const currentAudit = analyzeSlideCompliance(currentSlide);
+  const fullDeckAudits = slides.map((s, idx) => ({ idx, title: s.title, ...analyzeSlideCompliance(s) }));
+  const totalIssueCount = fullDeckAudits.reduce((sum, a) => sum + a.warnings.length, 0);
 
-  // ================= 导出 1：商业级可编辑 .pptx =================
+  // ================= 导出 1：零弹窗商业级可编辑 .pptx =================
   const handleExportPPTX = async () => {
     let dangerCount = 0;
     let warnCount = 0;
-    slides.forEach((s) => {
-      analyzeSlideCompliance(s).warnings.forEach((w) => (w.level === 'danger' ? dangerCount++ : warnCount++));
-    });
+    fullDeckAudits.forEach((a) => a.warnings.forEach((w) => (w.level === 'danger' ? dangerCount++ : warnCount++)));
 
     if (dangerCount > 0 || warnCount > 0) {
-      if (!window.confirm(`【导出前合规体检报告】\n检测到 ${dangerCount} 项红线风险提醒，${warnCount} 项提醒。\n\n是否继续导出？`)) return;
+      if (!window.confirm(`【导出前合规体检报告】\n检测到 ${dangerCount} 项红线风险，${warnCount} 项提醒。\n\n是否继续导出？`)) return;
     }
 
     const pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_16x9';
     const bgDataUrl = generateTexturedBgDataURL(theme, false);
-    const coverDarkBgUrl = theme.isSplit ? generateTexturedBgDataURL(theme, true) : bgDataUrl;
-    const pptxShadow = undefined;
     const accentHex = hex(theme.accent);
+    // PowerPoint 原生字体只取首个主字体名，确保 100% 识别
+    const pptxFont = fontFamily.split(',')[0].replace(/['"]/g, '').trim() || 'Noto Sans SC';
 
     for (let sIdx = 0; sIdx < slides.length; sIdx++) {
       const s = slides[sIdx];
       const slide = pptx.addSlide();
       const isContent = !['cover', 'section', 'ending'].includes(s.layout);
-      const isDarkCover = theme.isSplit && !isContent;
+      const isDark = !isContent && (theme.isSplit || theme.id === 'minimal');
       const customBg = isContent ? contentBg : coverBg;
+      const fScale = s.fontScale || 1;
+      const rev = Boolean(s.reverseLayout);
 
       if (customBg) {
         slide.background = { data: customBg };
+      } else if (isDark) {
+        const coverTheme = theme.coverBgColor ? theme : { ...theme, coverBgColor: theme.primary, coverBgEnd: '#0F172A' };
+        slide.background = { data: generateTexturedBgDataURL(coverTheme, true) };
       } else if (theme.isSplit && isContent) {
         slide.background = { color: 'FFFFFF' };
       } else {
-        slide.background = { data: isDarkCover ? coverDarkBgUrl : bgDataUrl };
+        slide.background = { data: bgDataUrl };
       }
 
       if (brandLogo) {
         slide.addImage({ data: brandLogo, x: 8.45, y: 0.25, w: 1.15, h: 0.48, sizing: { type: 'contain', w: 1.15, h: 0.48 } });
+      } else if (headerTag && isContent) {
+        slide.addText(headerTag, { x: 6.0, y: 0.24, w: 3.4, h: 0.3, fontSize: 9.5, fontFace: pptxFont, color: hex(theme.subText), align: 'right' });
+      }
+
+      if (s.notes && s.notes.trim()) {
+        slide.addNotes(s.notes.trim());
       }
 
       const items = s.items || [];
-      const sText = isDarkCover ? 'FFFFFF' : hex(theme.text);
-      const sSubText = isDarkCover ? 'CBD5E1' : hex(theme.subText);
+      const sText = isDark ? 'FFFFFF' : hex(theme.text);
+      const sSubText = isDark ? 'CBD5E1' : hex(theme.subText);
 
       if (showFooter && isContent) {
         slide.addShape(pptx.ShapeType.rect, { x: 0.6, y: 5.18, w: 8.8, h: 0.015, fill: { color: 'CBD5E1' } });
-        slide.addText(`${projectName || '商业演示方案'}  ·  CONFIDENTIAL`, { x: 0.6, y: 5.24, w: 6.0, h: 0.28, fontSize: 10, fontFace: fontFamily, color: hex(theme.subText) });
-        slide.addText(`${String(sIdx + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`, { x: 7.4, y: 5.24, w: 2.0, h: 0.28, fontSize: 10, bold: true, fontFace: fontFamily, color: hex(theme.primary), align: 'right' });
+        slide.addText(sourceNote || `${projectName || '商业演示方案'}  ·  CONFIDENTIAL`, { x: 0.6, y: 5.24, w: 6.8, h: 0.28, fontSize: 9.5, fontFace: pptxFont, color: hex(theme.subText) });
+        slide.addText(`${String(sIdx + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`, { x: 7.4, y: 5.24, w: 2.0, h: 0.28, fontSize: 10, bold: true, fontFace: pptxFont, color: hex(theme.primary), align: 'right' });
       }
 
       if (s.layout === 'cover') {
-        slide.addText('ANNUAL REPORT / PRESENTATION', { x: 1.0, y: 1.25, w: 6.0, h: 0.35, fontSize: 12, bold: true, charSpacing: 4, color: isDarkCover ? accentHex : hex(theme.primary) });
-        slide.addShape(pptx.ShapeType.rect, { x: 0.7, y: 1.7, w: 0.12, h: 2.1, fill: { color: isDarkCover ? accentHex : hex(theme.primary) } });
-        slide.addText(s.title, { x: 1.0, y: 1.65, w: 8.2, h: 1.3, fontSize: 40, bold: true, fontFace: fontFamily, color: sText, valign: 'middle' });
-        slide.addText(s.subtitle, { x: 1.0, y: 3.0, w: 8.2, h: 0.7, fontSize: 18, fontFace: fontFamily, color: sSubText });
+        slide.addText('ANNUAL REPORT / PRESENTATION', { x: 1.0, y: 1.25, w: 6.0, h: 0.35, fontSize: 12, bold: true, charSpacing: 4, color: isDark ? accentHex : hex(theme.primary) });
+        slide.addShape(pptx.ShapeType.rect, { x: 0.7, y: 1.7, w: 0.12, h: 2.1, fill: { color: isDark ? accentHex : hex(theme.primary) } });
+        slide.addText(s.title, { x: 1.0, y: 1.65, w: 8.2, h: 1.3, fontSize: Math.round(38 * fScale), bold: true, fontFace: pptxFont, color: sText, valign: 'middle', shrinkText: true });
+        slide.addText(s.subtitle, { x: 1.0, y: 3.0, w: 8.2, h: 0.7, fontSize: Math.round(17 * fScale), fontFace: pptxFont, color: sSubText });
       } else if (s.layout === 'section') {
-        slide.addText(s.subtitle || 'PART 01', { x: 0.8, y: 1.45, w: 8.4, h: 0.7, fontSize: 28, bold: true, charSpacing: 3, fontFace: fontFamily, color: isDarkCover ? accentHex : hex(theme.primary), align: 'center' });
+        slide.addText(s.subtitle || 'PART 01', { x: 0.8, y: 1.45, w: 8.4, h: 0.7, fontSize: 28, bold: true, charSpacing: 3, fontFace: pptxFont, color: isDark ? accentHex : hex(theme.primary), align: 'center' });
         slide.addShape(pptx.ShapeType.rect, { x: 4.3, y: 2.25, w: 1.4, h: 0.08, fill: { color: accentHex } });
-        slide.addText(s.title, { x: 0.8, y: 2.5, w: 8.4, h: 1.2, fontSize: 42, bold: true, fontFace: fontFamily, color: sText, align: 'center', valign: 'middle' });
+        slide.addText(s.title, { x: 0.8, y: 2.5, w: 8.4, h: 1.2, fontSize: Math.round(40 * fScale), bold: true, fontFace: pptxFont, color: sText, align: 'center', valign: 'middle', shrinkText: true });
       } else if (s.layout === 'ending') {
         slide.addText('THANK YOU FOR WATCHING', { x: 0.8, y: 1.45, w: 8.4, h: 0.35, fontSize: 12, bold: true, charSpacing: 4, color: sSubText, align: 'center' });
-        slide.addText(s.title || '感谢聆听', { x: 0.8, y: 1.9, w: 8.4, h: 1.1, fontSize: 44, bold: true, fontFace: fontFamily, color: isDarkCover ? 'FFFFFF' : hex(theme.primary), align: 'center' });
-        slide.addText(s.subtitle, { x: 0.8, y: 3.1, w: 8.4, h: 0.6, fontSize: 18, fontFace: fontFamily, color: sSubText, align: 'center' });
+        slide.addText(s.title || '感谢聆听', { x: 0.8, y: 1.9, w: 8.4, h: 1.1, fontSize: Math.round(42 * fScale), bold: true, fontFace: pptxFont, color: isDark ? 'FFFFFF' : hex(theme.primary), align: 'center', shrinkText: true });
+        slide.addText(s.subtitle, { x: 0.8, y: 3.1, w: 8.4, h: 0.6, fontSize: 17, fontFace: pptxFont, color: sSubText, align: 'center' });
       } else {
-        slide.addShape(pptx.ShapeType.rect, { x: 0.6, y: 0.42, w: 0.09, h: 0.45, fill: { color: accentHex } });
-        slide.addText(s.title, { x: 0.78, y: 0.35, w: 7.5, h: 0.58, fontSize: 23, bold: true, fontFace: fontFamily, color: hex(theme.text) });
+        slide.addShape(pptx.ShapeType.rect, { x: 0.6, y: 0.42, w: 0.09, h: 0.44, fill: { color: accentHex } });
+        slide.addText(s.title, { x: 0.78, y: 0.35, w: 7.4, h: 0.56, fontSize: Math.round(22 * fScale), bold: true, fontFace: pptxFont, color: hex(theme.text), shrinkText: true });
         if (s.subtitle) {
-          slide.addText(stripMarkdown(s.subtitle), { x: 0.78, y: 0.92, w: 8.2, h: 0.34, fontSize: 12.5, fontFace: fontFamily, color: hex(theme.subText) });
+          slide.addText(stripMarkdown(s.subtitle), { x: 0.78, y: 0.91, w: 8.2, h: 0.32, fontSize: 11.5, fontFace: pptxFont, color: hex(theme.subText), shrinkText: true });
         }
 
         if (s.layout === 'dashboard') {
-          // 顶部 3 张 KPI 卡片
           const kpis = s.kpis && s.kpis.length >= 3 ? s.kpis : DEFAULT_KPIS;
           kpis.slice(0, 3).forEach((k, i) => {
             const x = 0.6 + i * 3.0;
-            const isRed = i === 1;
-            const barHex = isRed ? accentHex : hex(theme.primary);
-            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.38, w: 2.8, h: 0.96, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x, y: 1.38, w: 0.08, h: 0.96, fill: { color: barHex } });
-            slide.addText(k.label, { x: x + 0.18, y: 1.44, w: 2.5, h: 0.28, fontSize: 11, fontFace: fontFamily, color: hex(theme.subText) });
-            slide.addText(k.value, { x: x + 0.18, y: 1.72, w: 1.45, h: 0.5, fontSize: 22, bold: true, fontFace: fontFamily, color: barHex, valign: 'middle' });
+            const barHex = i === 1 ? accentHex : hex(theme.primary);
+            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.35, w: 2.8, h: 0.94, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: 1.35, w: 0.08, h: 0.94, fill: { color: barHex } });
+            slide.addText(k.label, { x: x + 0.16, y: 1.41, w: 2.55, h: 0.26, fontSize: 10, fontFace: pptxFont, color: hex(theme.subText), shrinkText: true });
+            slide.addText(k.value, { x: x + 0.16, y: 1.69, w: 1.35, h: 0.5, fontSize: 20, bold: true, fontFace: pptxFont, color: barHex, valign: 'middle', shrinkText: true });
             if (k.trend) {
-             slide.addShape(pptx.ShapeType.roundRect, { x: x + 1.62, y: 1.82, w: 1.05, h: 0.3, rectRadius: 0.12, fill: { color: 'F1F5F9' } }); 
-              slide.addText(k.trend, { x: x + 1.62, y: 1.82, w: 1.05, h: 0.3, fontSize: 9.5, bold: true, fontFace: fontFamily, color: barHex, align: 'center', valign: 'middle' });
+              slide.addShape(pptx.ShapeType.roundRect, { x: x + 1.52, y: 1.8, w: 1.18, h: 0.3, rectRadius: 0.12, fill: { color: 'F1F5F9' } });
+              slide.addText(k.trend, { x: x + 1.52, y: 1.8, w: 1.18, h: 0.3, fontSize: 8.5, bold: true, fontFace: pptxFont, color: barHex, align: 'center', valign: 'middle', shrinkText: true });
             }
           });
 
-          // 下方左侧多系列图表
+          const chartX = rev ? 3.85 : 0.6;
+          const textX = rev ? 0.6 : 6.35;
           addChartToPptxSlide(pptx, slide, {
-            x: 0.6, y: 2.58, w: 5.55, h: 2.45,
-            type: s.chartType || 'groupedBar',
-            data: s.chartData,
-            theme,
-            series1: s.chartSeriesName,
-            series2: s.chartSeriesName2,
-            unit: s.chartUnit,
+            x: chartX, y: 2.54, w: 5.55, h: 2.48,
+            type: s.chartType || 'groupedBar', data: s.chartData, theme,
+            series1: s.chartSeriesName, series2: s.chartSeriesName2, unit: s.chartUnit,
           });
-
-          // 下方右侧 2 条核心归因结论
           items.slice(0, 2).forEach((item, i) => {
-            const y = 2.52 + i * 1.28;
-            slide.addShape(pptx.ShapeType.roundRect, { x: 6.35, y, w: 3.05, h: 1.15, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x: 6.35, y, w: 3.05, h: 0.05, fill: { color: i === 0 ? hex(theme.primary) : accentHex } });
-            slide.addText(item.head, { x: 6.5, y: y + 0.1, w: 2.75, h: 0.3, fontSize: 12.5, bold: true, fontFace: fontFamily, color: i === 0 ? hex(theme.primary) : accentHex });
-            slide.addText(toPptxRichText(item.body, { fontSize: 11, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: 6.5, y: y + 0.42, w: 2.75, h: 0.68, valign: 'top' });
+            const y = 2.48 + i * 1.29;
+            slide.addShape(pptx.ShapeType.roundRect, { x: textX, y, w: 3.05, h: 1.18, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x: textX, y, w: 3.05, h: 0.05, fill: { color: i === 0 ? hex(theme.primary) : accentHex } });
+            slide.addText(item.head, { x: textX + 0.14, y: y + 0.09, w: 2.77, h: 0.28, fontSize: Math.round(12 * fScale), bold: true, fontFace: pptxFont, color: i === 0 ? hex(theme.primary) : accentHex, shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(10.5 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: textX + 0.14, y: y + 0.39, w: 2.77, h: 0.72, valign: 'top', shrinkText: true });
           });
         } else if (s.layout === 'table') {
           const tData = s.tableData && s.tableData.headers ? s.tableData : DEFAULT_TABLE_DATA;
+          const rowCount = tData.rows.length + 1;
+          const dynamicRowH = Math.min(0.4, 2.3 / rowCount);
           const pptxRows = [
-            tData.headers.map((h) => ({ text: h, options: { fill: { color: hex(theme.primary) }, color: 'FFFFFF', bold: true, fontSize: 12, fontFace: fontFamily, align: 'center', valign: 'middle' } })),
+            tData.headers.map((h) => ({ text: h, options: { fill: { color: hex(theme.primary) }, color: 'FFFFFF', bold: true, fontSize: Math.round(11.5 * fScale), fontFace: pptxFont, align: 'center', valign: 'middle' } })),
             ...tData.rows.map((row, rIdx) =>
               row.map((cell, cIdx) => {
                 const isHL = cIdx === row.length - 1 || /^\+/.test(String(cell).trim());
-                return { text: String(cell), options: { fill: { color: rIdx % 2 === 1 ? 'F1F5F9' : 'FFFFFF' }, color: isHL ? accentHex : hex(theme.text), bold: cIdx === 0 || isHL, fontSize: 11.5, fontFace: fontFamily, align: cIdx === 0 ? 'left' : 'center', valign: 'middle' } };
+                return { text: String(cell), options: { fill: { color: rIdx % 2 === 1 ? 'F1F5F9' : 'FFFFFF' }, color: isHL ? accentHex : hex(theme.text), bold: cIdx === 0 || isHL, fontSize: Math.round(11 * fScale), fontFace: pptxFont, align: cIdx === 0 ? 'left' : 'center', valign: 'middle' } };
               })
             ),
           ];
-          slide.addTable(pptxRows, { x: 0.6, y: 1.45, w: 8.8, rowH: 0.42, border: { pt: 1, color: 'CBD5E1' } });
+          slide.addTable(pptxRows, { x: 0.6, y: 1.38, w: 8.8, rowH: dynamicRowH, border: { pt: 1, color: 'CBD5E1' } });
           items.slice(0, 2).forEach((item, i) => {
             const x = 0.6 + i * 4.55;
-            slide.addShape(pptx.ShapeType.roundRect, { x, y: 3.92, w: 4.25, h: 1.05, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
-            slide.addShape(pptx.ShapeType.rect, { x, y: 3.92, w: 0.08, h: 1.05, fill: { color: i === 0 ? hex(theme.primary) : accentHex } });
-            slide.addText(item.head, { x: x + 0.18, y: 4.0, w: 3.9, h: 0.3, fontSize: 13, bold: true, fontFace: fontFamily, color: i === 0 ? hex(theme.primary) : accentHex });
-            slide.addText(toPptxRichText(item.body, { fontSize: 11.5, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: x + 0.18, y: 4.32, w: 3.9, h: 0.6, valign: 'top' });
+            slide.addShape(pptx.ShapeType.roundRect, { x, y: 3.92, w: 4.25, h: 1.08, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: 3.92, w: 0.08, h: 1.08, fill: { color: i === 0 ? hex(theme.primary) : accentHex } });
+            slide.addText(item.head, { x: x + 0.18, y: 3.99, w: 3.9, h: 0.28, fontSize: Math.round(12.5 * fScale), bold: true, fontFace: pptxFont, color: i === 0 ? hex(theme.primary) : accentHex, shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(10.5 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: x + 0.18, y: 4.3, w: 3.9, h: 0.64, valign: 'top', shrinkText: true });
           });
         } else if (s.layout === 'fourCol') {
           items.slice(0, 4).forEach((item, i) => {
             const x = 0.6 + i * 2.26;
             const headColor = i % 2 === 0 ? hex(theme.primary) : accentHex;
-            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.48, w: 2.08, h: 3.45, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x, y: 1.48, w: 2.08, h: 0.48, fill: { color: headColor } });
-            slide.addText(item.head, { x, y: 1.48, w: 2.08, h: 0.48, fontSize: 13.5, bold: true, fontFace: fontFamily, color: 'FFFFFF', align: 'center', valign: 'middle' });
-            slide.addText(toPptxRichText(item.body, { fontSize: 11, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: x + 0.1, y: 2.08, w: 1.88, h: 2.15, valign: 'top', lineSpacingMultiple: 1.3 });
+            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.45, w: 2.08, h: 3.5, rectRadius: 0.06, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: 1.45, w: 2.08, h: 0.46, fill: { color: headColor } });
+            slide.addText(item.head, { x, y: 1.45, w: 2.08, h: 0.46, fontSize: Math.round(13 * fScale), bold: true, fontFace: pptxFont, color: 'FFFFFF', align: 'center', valign: 'middle', shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(10.5 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: x + 0.1, y: 2.02, w: 1.88, h: 2.26, valign: 'top', lineSpacingMultiple: 1.2, shrinkText: true });
             if (item.badge) {
-              slide.addShape(pptx.ShapeType.roundRect, { x: x + 0.16, y: 4.38, w: 1.76, h: 0.36, rectRadius: 0.15, fill: { color: headColor } });
-              slide.addText(item.badge, { x: x + 0.16, y: 4.38, w: 1.76, h: 0.36, fontSize: 11, bold: true, fontFace: fontFamily, color: 'FFFFFF', align: 'center', valign: 'middle' });
+              slide.addShape(pptx.ShapeType.roundRect, { x: x + 0.16, y: 4.4, w: 1.76, h: 0.36, rectRadius: 0.15, fill: { color: headColor } });
+              slide.addText(item.badge, { x: x + 0.16, y: 4.4, w: 1.76, h: 0.36, fontSize: 10.5, bold: true, fontFace: pptxFont, color: 'FFFFFF', align: 'center', valign: 'middle', shrinkText: true });
             }
           });
         } else if (s.layout === 'chart') {
+          const chartX = rev ? 3.9 : 0.6;
+          const textX = rev ? 0.6 : 6.35;
           addChartToPptxSlide(pptx, slide, {
-            x: 0.6, y: 1.55, w: 5.5, h: 3.35,
-            type: s.chartType || 'groupedBar',
-            data: s.chartData,
-            theme,
-            series1: s.chartSeriesName,
-            series2: s.chartSeriesName2,
-            unit: s.chartUnit,
+            x: chartX, y: 1.52, w: 5.5, h: 3.4,
+            type: s.chartType || 'groupedBar', data: s.chartData, theme,
+            series1: s.chartSeriesName, series2: s.chartSeriesName2, unit: s.chartUnit,
           });
           items.slice(0, 2).forEach((item, i) => {
-            const y = 1.5 + i * 1.72;
-            slide.addShape(pptx.ShapeType.roundRect, { x: 6.35, y, w: 3.05, h: 1.55, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x: 6.35, y, w: 3.05, h: 0.06, fill: { color: hex(theme.primary) } });
-            slide.addText(item.head, { x: 6.55, y: y + 0.18, w: 2.65, h: 0.4, fontSize: 14, bold: true, fontFace: fontFamily, color: hex(theme.primary) });
-            slide.addText(toPptxRichText(item.body, { fontSize: 12, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: 6.55, y: y + 0.62, w: 2.65, h: 0.82, valign: 'top' });
+            const y = 1.48 + i * 1.74;
+            slide.addShape(pptx.ShapeType.roundRect, { x: textX, y, w: 3.05, h: 1.58, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x: textX, y, w: 3.05, h: 0.06, fill: { color: hex(theme.primary) } });
+            slide.addText(item.head, { x: textX + 0.18, y: y + 0.16, w: 2.68, h: 0.38, fontSize: Math.round(13.5 * fScale), bold: true, fontFace: pptxFont, color: hex(theme.primary), shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(11 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: textX + 0.18, y: y + 0.58, w: 2.68, h: 0.9, valign: 'top', shrinkText: true });
           });
         } else if (s.layout === 'toc') {
           items.slice(0, 4).forEach((item, i) => {
             const col = i % 2;
             const row = Math.floor(i / 2);
             const x = 0.6 + col * 4.55;
-            const y = 1.6 + row * 1.65;
-            slide.addShape(pptx.ShapeType.roundRect, { x, y, w: 4.25, h: 1.4, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x, y: y + 0.25, w: 0.08, h: 0.9, fill: { color: hex(theme.primary) } });
-            slide.addText(`0${i + 1}`, { x: x + 0.25, y: y + 0.2, w: 0.8, h: 0.9, fontSize: 28, bold: true, fontFace: fontFamily, color: hex(theme.primary), valign: 'middle' });
-            slide.addText(item.head, { x: x + 1.1, y: y + 0.22, w: 2.95, h: 0.45, fontSize: 16, bold: true, fontFace: fontFamily, color: hex(theme.text) });
-            slide.addText(stripMarkdown(item.body), { x: x + 1.1, y: y + 0.72, w: 2.95, h: 0.5, fontSize: 12.5, fontFace: fontFamily, color: hex(theme.subText) });
+            const y = 1.58 + row * 1.66;
+            slide.addShape(pptx.ShapeType.roundRect, { x, y, w: 4.25, h: 1.42, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: y + 0.25, w: 0.08, h: 0.92, fill: { color: hex(theme.primary) } });
+            slide.addText(`0${i + 1}`, { x: x + 0.24, y: y + 0.2, w: 0.8, h: 0.92, fontSize: 28, bold: true, fontFace: pptxFont, color: hex(theme.primary), valign: 'middle' });
+            slide.addText(item.head, { x: x + 1.1, y: y + 0.22, w: 2.95, h: 0.44, fontSize: Math.round(15.5 * fScale), bold: true, fontFace: pptxFont, color: hex(theme.text), shrinkText: true });
+            slide.addText(stripMarkdown(item.body), { x: x + 1.1, y: y + 0.72, w: 2.95, h: 0.56, fontSize: Math.round(12 * fScale), fontFace: pptxFont, color: hex(theme.subText), shrinkText: true });
           });
         } else if (s.layout === 'imageText') {
+          const imgX = rev ? 5.1 : 0.6;
+          const txtX = rev ? 0.6 : 5.2;
           if (s.image) {
-            slide.addImage({ data: s.image, x: 0.6, y: 1.55, w: 4.3, h: 3.3, sizing: { type: 'contain', w: 4.3, h: 3.3 } });
+            slide.addImage({ data: s.image, x: imgX, y: 1.52, w: 4.3, h: 3.35, sizing: { type: 'contain', w: 4.3, h: 3.35 } });
           } else {
-            slide.addShape(pptx.ShapeType.roundRect, { x: 0.6, y: 1.55, w: 4.3, h: 3.3, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, shadow: pptxShadow });
-            slide.addText('配图占位区', { x: 0.6, y: 2.9, w: 4.3, h: 0.6, fontSize: 16, fontFace: fontFamily, color: hex(theme.subText), align: 'center' });
+            slide.addShape(pptx.ShapeType.roundRect, { x: imgX, y: 1.52, w: 4.3, h: 3.35, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, line: { color: 'CBD5E1', width: 1 } });
+            slide.addText('配图占位区', { x: imgX, y: 2.9, w: 4.3, h: 0.6, fontSize: 16, fontFace: pptxFont, color: hex(theme.subText), align: 'center' });
           }
           for (let i = 0; i < 3; i++) {
             const item = items[i] || { head: '', body: '', icon: ICONS[i].id };
-            const y = 1.55 + i * 1.12;
+            const y = 1.52 + i * 1.14;
             const iconPng = await renderIconToDataURL(item.icon || ICONS[i].id, theme.primary);
             if (iconPng) {
-              slide.addShape(pptx.ShapeType.ellipse, { x: 5.2, y: y + 0.06, w: 0.44, h: 0.44, fill: { color: 'E2E8F0' } });
-              slide.addImage({ data: iconPng, x: 5.29, y: y + 0.15, w: 0.26, h: 0.26 });
+              slide.addShape(pptx.ShapeType.ellipse, { x: txtX, y: y + 0.06, w: 0.44, h: 0.44, fill: { color: 'E2E8F0' } });
+              slide.addImage({ data: iconPng, x: txtX + 0.09, y: y + 0.15, w: 0.26, h: 0.26 });
             }
-            slide.addText(item.head, { x: 5.78, y, w: 3.6, h: 0.36, fontSize: 15, bold: true, fontFace: fontFamily, color: hex(theme.primary) });
-            slide.addText(toPptxRichText(item.body, { fontSize: 12.5, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: 5.78, y: y + 0.38, w: 3.6, h: 0.65, valign: 'top' });
+            slide.addText(item.head, { x: txtX + 0.58, y, w: 3.6, h: 0.34, fontSize: Math.round(14.5 * fScale), bold: true, fontFace: pptxFont, color: hex(theme.primary), shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(11.5 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: txtX + 0.58, y: y + 0.36, w: 3.6, h: 0.72, valign: 'top', shrinkText: true });
           }
         } else if (s.layout === 'compare') {
           items.slice(0, 2).forEach((item, i) => {
             const x = 0.6 + i * 4.55;
             const barColor = i === 0 ? hex(theme.subText) : hex(theme.primary);
-            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.55, w: 4.25, h: 3.3, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x, y: 1.55, w: 4.25, h: 0.07, fill: { color: barColor } });
-            slide.addText(item.head, { x: x + 0.25, y: 1.78, w: 3.75, h: 0.5, fontSize: 18, bold: true, fontFace: fontFamily, color: barColor });
-            slide.addText(toPptxRichText(item.body, { fontSize: 13, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: x + 0.25, y: 2.4, w: 3.75, h: 2.25, valign: 'top', lineSpacingMultiple: 1.35 });
+            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.48, w: 4.25, h: 3.45, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: 1.48, w: 4.25, h: 0.07, fill: { color: barColor } });
+            slide.addText(item.head, { x: x + 0.22, y: 1.68, w: 3.8, h: 0.44, fontSize: Math.round(16.5 * fScale), bold: true, fontFace: pptxFont, color: barColor, shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(10 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: x + 0.2, y: 2.15, w: 3.85, h: 2.72, valign: 'top', lineSpacingMultiple: 1.15 });
           });
         } else if (s.layout === 'cards') {
           for (let i = 0; i < 3; i++) {
             const item = items[i] || { head: '', body: '', icon: ICONS[i].id };
             const x = 0.6 + i * 3.05;
-            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.55, w: 2.75, h: 3.3, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x, y: 1.55, w: 2.75, h: 0.07, fill: { color: hex(theme.primary) } });
+            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.48, w: 2.75, h: 3.45, rectRadius: 0.08, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: 1.48, w: 2.75, h: 0.07, fill: { color: hex(theme.primary) } });
             const iconPng = await renderIconToDataURL(item.icon || ICONS[i].id, theme.primary);
             if (iconPng) {
-              slide.addShape(pptx.ShapeType.roundRect, { x: x + 0.22, y: 1.82, w: 0.5, h: 0.5, rectRadius: 0.1, fill: { color: 'E2E8F0' } });
-              slide.addImage({ data: iconPng, x: x + 0.31, y: 1.91, w: 0.32, h: 0.32 });
+              slide.addShape(pptx.ShapeType.roundRect, { x: x + 0.2, y: 1.7, w: 0.46, h: 0.46, rectRadius: 0.1, fill: { color: 'E2E8F0' } });
+              slide.addImage({ data: iconPng, x: x + 0.28, y: 1.78, w: 0.3, h: 0.3 });
             }
-            slide.addText(item.head, { x: x + 0.22, y: 2.46, w: 2.32, h: 0.44, fontSize: 16, bold: true, fontFace: fontFamily, color: hex(theme.text) });
-            slide.addText(toPptxRichText(item.body, { fontSize: 12.5, fontFace: fontFamily, color: hex(theme.subText) }, accentHex), { x: x + 0.22, y: 2.96, w: 2.32, h: 1.75, valign: 'top' });
+            slide.addText(item.head, { x: x + 0.2, y: 2.28, w: 2.35, h: 0.4, fontSize: Math.round(15 * fScale), bold: true, fontFace: pptxFont, color: hex(theme.text), shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(9.5 * fScale), fontFace: pptxFont, color: hex(theme.subText) }, accentHex), { x: x + 0.16, y: 2.66, w: 2.43, h: 2.22, valign: 'top', lineSpacingMultiple: 1.15 });
           }
         } else if (s.layout === 'timeline') {
           slide.addShape(pptx.ShapeType.rect, { x: 0.8, y: 2.55, w: 8.4, h: 0.05, fill: { color: hex(theme.primary) } });
           items.slice(0, 3).forEach((item, i) => {
             const x = 0.6 + i * 3.05;
-            slide.addShape(pptx.ShapeType.ellipse, { x: x + 1.15, y: 2.35, w: 0.45, h: 0.45, fill: { color: accentHex }, shadow: pptxShadow });
+            slide.addShape(pptx.ShapeType.ellipse, { x: x + 1.15, y: 2.35, w: 0.45, h: 0.45, fill: { color: accentHex } });
             slide.addText(`0${i + 1}`, { x: x + 1.15, y: 2.35, w: 0.45, h: 0.45, fontSize: 14, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' });
-            slide.addText(item.head, { x, y: 1.65, w: 2.75, h: 0.5, fontSize: 17, bold: true, fontFace: fontFamily, color: hex(theme.primary), align: 'center' });
-            slide.addText(toPptxRichText(item.body, { fontSize: 13, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x, y: 3.05, w: 2.75, h: 1.8, align: 'center', valign: 'top' });
+            slide.addText(item.head, { x, y: 1.65, w: 2.75, h: 0.5, fontSize: Math.round(16 * fScale), bold: true, fontFace: pptxFont, color: hex(theme.primary), align: 'center', shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(12 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x, y: 3.05, w: 2.75, h: 1.85, align: 'center', valign: 'top', shrinkText: true });
           });
         } else if (s.layout === 'metrics') {
           items.slice(0, 3).forEach((item, i) => {
             const x = 0.6 + i * 3.05;
-            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.75, w: 2.75, h: 2.85, rectRadius: 0.1, fill: { color: hex(theme.cardBg) }, shadow: pptxShadow });
-            slide.addShape(pptx.ShapeType.rect, { x, y: 1.75, w: 2.75, h: 0.07, fill: { color: accentHex } });
-            slide.addText(item.head, { x, y: 2.1, w: 2.75, h: 1.1, fontSize: 40, bold: true, fontFace: fontFamily, color: accentHex, align: 'center', valign: 'middle' });
-            slide.addText(toPptxRichText(item.body, { fontSize: 14, fontFace: fontFamily, color: hex(theme.text) }, accentHex), { x: x + 0.15, y: 3.3, w: 2.45, h: 1.0, align: 'center', valign: 'top' });
+            slide.addShape(pptx.ShapeType.roundRect, { x, y: 1.72, w: 2.75, h: 2.9, rectRadius: 0.1, fill: { color: hex(theme.cardBg) }, line: { color: 'E2E8F0', width: 1 } });
+            slide.addShape(pptx.ShapeType.rect, { x, y: 1.72, w: 2.75, h: 0.07, fill: { color: accentHex } });
+            slide.addText(item.head, { x, y: 2.05, w: 2.75, h: 1.1, fontSize: Math.round(38 * fScale), bold: true, fontFace: pptxFont, color: accentHex, align: 'center', valign: 'middle', shrinkText: true });
+            slide.addText(toPptxRichText(item.body, { fontSize: Math.round(13 * fScale), fontFace: pptxFont, color: hex(theme.text) }, accentHex), { x: x + 0.15, y: 3.25, w: 2.45, h: 1.1, align: 'center', valign: 'top', shrinkText: true });
           });
         }
       }
     }
 
     pptx.writeFile({ fileName: `${projectName || 'PPT接单成品'}.pptx` });
-    alert('✅ 已导出商业汇报级 .pptx！（含经营仪表盘、多系列原生图表、原生表格与富文本标红）');
+    showToast('✅ 已导出零弹窗商业级 .pptx（含防溢出排版、原生图表/表格与演讲者备注）！');
   };
 
   // ================= 公共渲染器：把单页绘制到 1280x720 Canvas =================
   const renderSlideToCanvas = async (ctx, slideData, logoImg, slideIndex, totalSlides) => {
     const isContent = !['cover', 'section', 'ending'].includes(slideData.layout);
-    const isDarkCover = theme.isSplit && !isContent;
+    const isDark = !isContent && (theme.isSplit || theme.id === 'minimal');
     const customBgImg = await loadImage(isContent ? contentBg : coverBg);
 
     if (customBgImg) {
-     ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       const scaleBg = Math.max(1280 / customBgImg.width, 720 / customBgImg.height);
       const drawW = customBgImg.width * scaleBg;
       const drawH = customBgImg.height * scaleBg;
-      ctx.drawImage(customBgImg, (1280 - drawW) / 2, (720 - drawH) / 2, drawW, drawH); 
+      ctx.drawImage(customBgImg, (1280 - drawW) / 2, (720 - drawH) / 2, drawW, drawH);
     } else if (theme.isSplit && isContent) {
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, 1280, 720);
     } else {
       const grad = ctx.createLinearGradient(0, 0, 1280, 720);
-      grad.addColorStop(0, isDarkCover ? theme.coverBgColor : theme.bg);
-      grad.addColorStop(1, isDarkCover ? theme.coverBgEnd : theme.bgEnd || theme.bg);
+      grad.addColorStop(0, isDark ? theme.coverBgColor || theme.primary : theme.bg);
+      grad.addColorStop(1, isDark ? theme.coverBgEnd || '#051526' : theme.bgEnd || theme.bg);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 1280, 720);
     }
@@ -785,6 +878,12 @@ export default function App() {
     if (logoImg) {
       const ratio = Math.min(150 / logoImg.width, 60 / logoImg.height);
       ctx.drawImage(logoImg, 1280 - 76 - logoImg.width * ratio, 32, logoImg.width * ratio, logoImg.height * ratio);
+    } else if (headerTag && isContent) {
+      ctx.fillStyle = theme.subText;
+      ctx.font = `14px "${fontFamily}", sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.fillText(headerTag, 1204, 48);
+      ctx.textAlign = 'left';
     }
 
     const drawWrappedText = (text, x, y, maxWidth, lineHeight) => {
@@ -810,12 +909,12 @@ export default function App() {
 
     const items = slideData.items || [];
     if (showFooter && isContent) {
-      ctx.fillStyle = hexToRgba(theme.subText, 0.25);
+      ctx.fillStyle = '#CBD5E1';
       ctx.fillRect(76, 662, 1128, 2);
       ctx.fillStyle = theme.subText;
       ctx.font = `14px "${fontFamily}", sans-serif`;
       ctx.textAlign = 'left';
-      ctx.fillText(`${projectName || '商业演示方案'}  ·  CONFIDENTIAL`, 76, 690);
+      ctx.fillText(sourceNote || `${projectName || '商业演示方案'}  ·  CONFIDENTIAL`, 76, 690);
       ctx.fillStyle = theme.primary;
       ctx.font = `bold 15px "${fontFamily}", sans-serif`;
       ctx.textAlign = 'right';
@@ -824,10 +923,10 @@ export default function App() {
 
     if (!isContent) {
       ctx.textAlign = 'center';
-      ctx.fillStyle = isDarkCover ? '#FFFFFF' : theme.text;
+      ctx.fillStyle = isDark ? '#FFFFFF' : theme.text;
       ctx.font = `bold 48px "${fontFamily}", sans-serif`;
       ctx.fillText(slideData.title, 640, 330);
-      ctx.fillStyle = isDarkCover ? '#CBD5E1' : theme.subText;
+      ctx.fillStyle = isDark ? '#CBD5E1' : theme.subText;
       ctx.font = `24px "${fontFamily}", sans-serif`;
       ctx.fillText(stripMarkdown(slideData.subtitle), 640, 395);
     } else {
@@ -854,22 +953,17 @@ export default function App() {
           ctx.font = `16px "${fontFamily}", sans-serif`;
           ctx.fillText(k.label, kx + 24, 196);
           ctx.fillStyle = barC;
-          ctx.font = `bold 34px "${fontFamily}", sans-serif`;
+          ctx.font = `bold 32px "${fontFamily}", sans-serif`;
           ctx.fillText(k.value, kx + 24, 250);
           if (k.trend) {
-            ctx.font = `bold 15px "${fontFamily}", sans-serif`;
-            ctx.fillText(k.trend, kx + 210, 246);
+            ctx.font = `bold 14px "${fontFamily}", sans-serif`;
+            ctx.fillText(k.trend, kx + 200, 246);
           }
         });
         drawChartOnCanvas(ctx, {
           x: 76, y: 305, w: 705, h: 330,
-          type: slideData.chartType || 'groupedBar',
-          data: slideData.chartData,
-          theme,
-          series1: slideData.chartSeriesName,
-          series2: slideData.chartSeriesName2,
-          unit: slideData.chartUnit,
-          fontFamily,
+          type: slideData.chartType || 'groupedBar', data: slideData.chartData, theme,
+          series1: slideData.chartSeriesName, series2: slideData.chartSeriesName2, unit: slideData.chartUnit, fontFamily,
         });
         items.slice(0, 2).forEach((item, i) => {
           const iy = 305 + i * 172;
@@ -886,13 +980,8 @@ export default function App() {
       } else if (slideData.layout === 'chart') {
         drawChartOnCanvas(ctx, {
           x: 76, y: 185, w: 700, h: 440,
-          type: slideData.chartType || 'groupedBar',
-          data: slideData.chartData,
-          theme,
-          series1: slideData.chartSeriesName,
-          series2: slideData.chartSeriesName2,
-          unit: slideData.chartUnit,
-          fontFamily,
+          type: slideData.chartType || 'groupedBar', data: slideData.chartData, theme,
+          series1: slideData.chartSeriesName, series2: slideData.chartSeriesName2, unit: slideData.chartUnit, fontFamily,
         });
         items.slice(0, 2).forEach((item, i) => {
           const iy = 185 + i * 228;
@@ -909,14 +998,14 @@ export default function App() {
       } else if (slideData.layout === 'table') {
         const tData = slideData.tableData && slideData.tableData.headers ? slideData.tableData : DEFAULT_TABLE_DATA;
         const colW = 1128 / tData.headers.length;
-        const rowH = 54;
+        const rowH = Math.min(54, Math.floor(300 / (tData.rows.length + 1)));
         tData.headers.forEach((h, ci) => {
           ctx.fillStyle = theme.primary;
           ctx.fillRect(76 + ci * colW, 175, colW - 2, rowH);
           ctx.fillStyle = '#FFFFFF';
-          ctx.font = `bold 18px "${fontFamily}", sans-serif`;
+          ctx.font = `bold 17px "${fontFamily}", sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText(h, 76 + ci * colW + colW / 2, 208);
+          ctx.fillText(h, 76 + ci * colW + colW / 2, 175 + rowH * 0.65);
         });
         tData.rows.forEach((r, ri) => {
           const y = 175 + (ri + 1) * rowH;
@@ -925,9 +1014,9 @@ export default function App() {
             ctx.fillRect(76 + ci * colW, y, colW - 2, rowH - 2);
             const isHL = ci === r.length - 1 || /^\+/.test(String(cell));
             ctx.fillStyle = isHL ? theme.accent : theme.text;
-            ctx.font = `${isHL || ci === 0 ? 'bold ' : ''}17px "${fontFamily}", sans-serif`;
+            ctx.font = `${isHL || ci === 0 ? 'bold ' : ''}16px "${fontFamily}", sans-serif`;
             ctx.textAlign = ci === 0 ? 'left' : 'center';
-            ctx.fillText(String(cell), ci === 0 ? 92 + ci * colW : 76 + ci * colW + colW / 2, y + 34);
+            ctx.fillText(String(cell), ci === 0 ? 92 + ci * colW : 76 + ci * colW + colW / 2, y + rowH * 0.65);
           });
         });
         ctx.textAlign = 'left';
@@ -953,24 +1042,24 @@ export default function App() {
           ctx.fillStyle = headC;
           ctx.fillRect(x, 180, 266, 60);
           ctx.fillStyle = '#FFFFFF';
-          ctx.font = `bold 22px "${fontFamily}", sans-serif`;
+          ctx.font = `bold 21px "${fontFamily}", sans-serif`;
           ctx.textAlign = 'center';
           ctx.fillText(item.head, x + 133, 218);
           ctx.textAlign = 'left';
           ctx.fillStyle = theme.text;
-          ctx.font = `17px "${fontFamily}", sans-serif`;
-          drawWrappedText(item.body, x + 16, 275, 234, 30);
+          ctx.font = `16px "${fontFamily}", sans-serif`;
+          drawWrappedText(item.body, x + 16, 272, 234, 28);
           if (item.badge) {
             ctx.fillStyle = headC;
             ctx.fillRect(x + 24, 556, 218, 42);
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = `bold 18px "${fontFamily}", sans-serif`;
+            ctx.font = `bold 17px "${fontFamily}", sans-serif`;
             ctx.textAlign = 'center';
             ctx.fillText(item.badge, x + 133, 583);
             ctx.textAlign = 'left';
           }
         });
-     } else if (slideData.layout === 'toc') {
+      } else if (slideData.layout === 'toc') {
         items.slice(0, 4).forEach((item, i) => {
           const col = i % 2;
           const row = Math.floor(i / 2);
@@ -1004,19 +1093,18 @@ export default function App() {
           drawWrappedText(item.body, x + 28, 295, 492, 29);
         });
       } else {
-       items.slice(0, 2).forEach((item, i) => {
-          const ix = 76 + i * 580;
-          const barC = i === 0 ? theme.primary : theme.accent;
+        items.slice(0, 3).forEach((item, i) => {
+          const x = 76 + i * 390;
           ctx.fillStyle = theme.cardBg;
-          ctx.fillRect(ix, 505, 548, 132);
-          ctx.fillStyle = barC;
-          ctx.fillRect(ix, 505, 10, 132);
-          ctx.font = `bold 20px "${fontFamily}", sans-serif`;
-          ctx.fillText(item.head, ix + 24, 540);
+          ctx.fillRect(x, 200, 350, 400);
+          ctx.fillStyle = theme.primary;
+          ctx.fillRect(x, 200, 350, 6);
+          ctx.font = `bold 22px "${fontFamily}", sans-serif`;
+          ctx.fillText(item.head, x + 24, 255);
           ctx.fillStyle = theme.text;
           ctx.font = `17px "${fontFamily}", sans-serif`;
-          drawWrappedText(item.body, ix + 24, 574, 504, 26);
-        }); 
+          drawWrappedText(item.body, x + 24, 305, 300, 28);
+        });
       }
     }
 
@@ -1122,7 +1210,7 @@ export default function App() {
           ✨ 文档一键生成 PPT
         </button>
         <button onClick={() => setShowTemplateModal(true)} style={{ padding: '8px', background: '#334155', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
-          🎨 模板库与底图母版
+          🎨 全局模板排版与规范中心
         </button>
 
         <div style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -1156,7 +1244,7 @@ export default function App() {
         </div>
 
         <div>
-          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>基础商用配色：</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>基础配色：</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {THEMES.map((t) => (
               <button key={t.id} onClick={() => { setThemeId(t.id); setCustomPrimary(''); }} style={{ padding: '5px 8px', fontSize: 11, borderRadius: 4, cursor: 'pointer', background: themeId === t.id ? t.primary : '#334155', color: '#fff', border: themeId === t.id ? '1px solid #38bdf8' : 'none' }}>
@@ -1167,7 +1255,7 @@ export default function App() {
         </div>
 
         <label style={{ fontSize: 12, color: '#94a3b8' }}>
-          免费商用字体白名单：
+          全局字体：
           <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)} style={{ width: '100%', marginTop: 4, padding: 6, background: '#0f172a', color: '#fff', border: '1px solid #475569', borderRadius: 4, fontSize: 12 }}>
             {SAFE_FONTS.map((f) => <option key={f.value} value={f.value}>{f.name}</option>)}
           </select>
@@ -1200,19 +1288,23 @@ export default function App() {
         </div>
       </div>
 
-      {/* 中间栏：实时预览 + 合规体检 */}
+      {/* 中间栏：实时预览 + 顶部工具条 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 18, gap: 10, overflowY: 'auto' }}>
         {toastMsg && <div style={{ background: '#78350f', border: '1px solid #f59e0b', color: '#fef3c7', padding: '9px 14px', borderRadius: 8, fontSize: 12, fontWeight: 'bold' }}>{toastMsg}</div>}
 
         <div style={{ background: '#1e293b', padding: '10px 14px', borderRadius: 8, border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, flexWrap: 'wrap', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <strong>当前页体检：</strong>
-              <span style={{ color: currentAudit.charCount > maxCharLimit ? '#fbbf24' : '#4ade80' }}>字数 {currentAudit.charCount} / {maxCharLimit}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={handleUndo} disabled={past.length === 0} style={{ padding: '3px 8px', fontSize: 11, background: past.length ? '#334155' : '#0f172a', color: past.length ? '#fff' : '#475569', border: '1px solid #475569', borderRadius: 4, cursor: past.length ? 'pointer' : 'default' }}>↩️ 撤销</button>
+              <button onClick={handleRedo} disabled={future.length === 0} style={{ padding: '3px 8px', fontSize: 11, background: future.length ? '#334155' : '#0f172a', color: future.length ? '#fff' : '#475569', border: '1px solid #475569', borderRadius: 4, cursor: future.length ? 'pointer' : 'default' }}>↪️ 重做</button>
+              <span style={{ color: currentAudit.charCount > maxCharLimit ? '#fbbf24' : '#4ade80' }}>字数 {currentAudit.charCount}/{maxCharLimit}</span>
               <div style={{ display: 'inline-flex', background: '#0f172a', borderRadius: 6, padding: 2, border: '1px solid #334155' }}>
-                <button onClick={() => setDensityMode('report')} style={{ padding: '2px 8px', fontSize: 11, border: 'none', borderRadius: 4, cursor: 'pointer', background: densityMode === 'report' ? '#0284c7' : 'transparent', color: '#fff' }}>高密汇报(380字)</button>
-                <button onClick={() => setDensityMode('speech')} style={{ padding: '2px 8px', fontSize: 11, border: 'none', borderRadius: 4, cursor: 'pointer', background: densityMode === 'speech' ? '#0284c7' : 'transparent', color: '#fff' }}>极简演讲(120字)</button>
+                <button onClick={() => setDensityMode('report')} style={{ padding: '2px 8px', fontSize: 11, border: 'none', borderRadius: 4, cursor: 'pointer', background: densityMode === 'report' ? '#0284c7' : 'transparent', color: '#fff' }}>高密汇报(380)</button>
+                <button onClick={() => setDensityMode('speech')} style={{ padding: '2px 8px', fontSize: 11, border: 'none', borderRadius: 4, cursor: 'pointer', background: densityMode === 'speech' ? '#0284c7' : 'transparent', color: '#fff' }}>极简演讲(120)</button>
               </div>
+              <button onClick={() => setShowAuditModal(true)} style={{ padding: '3px 10px', fontSize: 11, background: totalIssueCount > 0 ? '#92400e' : '#065f46', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}>
+                🛡️ 全套体检 ({totalIssueCount})
+              </button>
             </div>
             <label style={{ cursor: 'pointer', color: '#94a3b8' }}>
               <input type="checkbox" checked={showSafeGuide} onChange={(e) => setShowSafeGuide(e.target.checked)} /> 安全边距线
@@ -1237,41 +1329,46 @@ export default function App() {
             }}
           >
             {showSafeGuide && <div style={{ position: 'absolute', inset: '5% 5.5%', border: '1px dashed rgba(148,163,184,0.28)', pointerEvents: 'none' }} />}
-            {brandLogo && <img src={brandLogo} alt="Logo" style={{ position: 'absolute', top: '4%', right: '5.5%', maxHeight: '8%', maxWidth: '14%', objectFit: 'contain' }} />}
+            {brandLogo ? (
+              <img src={brandLogo} alt="Logo" style={{ position: 'absolute', top: '4%', right: '5.5%', maxHeight: '8%', maxWidth: '14%', objectFit: 'contain' }} />
+            ) : (
+              headerTag && isContentSlide && (
+                <div style={{ position: 'absolute', top: '4.2%', right: '5.5%', fontSize: 10, color: theme.subText }}>{headerTag}</div>
+              )
+            )}
 
             {currentSlide.layout === 'cover' && (
-              <div style={{ borderLeft: `6px solid ${isSplitDarkCover ? theme.accent : theme.primary}`, paddingLeft: 26 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: isSplitDarkCover ? theme.accent : theme.primary, marginBottom: 10 }}>ANNUAL REPORT / PRESENTATION</div>
-                <div style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.25 }}>{currentSlide.title}</div>
-                <div style={{ fontSize: 16, color: activeSubText, marginTop: 14 }}>{currentSlide.subtitle}</div>
+              <div style={{ borderLeft: `6px solid ${isDarkCover ? theme.accent : theme.primary}`, paddingLeft: 26 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: isDarkCover ? theme.accent : theme.primary, marginBottom: 10 }}>ANNUAL REPORT / PRESENTATION</div>
+                <div style={{ fontSize: Math.round(35 * currentFontScale), fontWeight: 900, lineHeight: 1.25 }}>{currentSlide.title}</div>
+                <div style={{ fontSize: Math.round(16 * currentFontScale), color: activeSubText, marginTop: 14 }}>{currentSlide.subtitle}</div>
               </div>
             )}
 
             {currentSlide.layout === 'section' && (
               <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: isSplitDarkCover ? theme.accent : theme.primary, letterSpacing: 3 }}>{currentSlide.subtitle || 'PART 01'}</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: isDarkCover ? theme.accent : theme.primary, letterSpacing: 3 }}>{currentSlide.subtitle || 'PART 01'}</div>
                 <div style={{ width: 64, height: 4, background: theme.accent, margin: '14px 0', borderRadius: 2 }} />
-                <div style={{ fontSize: 38, fontWeight: 900 }}>{currentSlide.title}</div>
+                <div style={{ fontSize: Math.round(36 * currentFontScale), fontWeight: 900 }}>{currentSlide.title}</div>
               </div>
             )}
 
             {currentSlide.layout === 'ending' && (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: activeSubText, marginBottom: 10 }}>THANK YOU FOR WATCHING</div>
-                <div style={{ fontSize: 42, fontWeight: 900, color: isSplitDarkCover ? '#FFFFFF' : theme.primary }}>{currentSlide.title}</div>
+                <div style={{ fontSize: Math.round(40 * currentFontScale), fontWeight: 900, color: isDarkCover ? '#FFFFFF' : theme.primary }}>{currentSlide.title}</div>
                 <div style={{ fontSize: 16, color: activeSubText, marginTop: 14 }}>{currentSlide.subtitle}</div>
               </div>
             )}
 
             {isContentSlide && (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingRight: brandLogo ? '16%' : 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingRight: brandLogo || headerTag ? '20%' : 0 }}>
                   <div style={{ width: 6, height: 24, background: theme.accent, borderRadius: 2, flexShrink: 0 }} />
-                  <div style={{ fontSize: 21, fontWeight: 900 }}>{currentSlide.title}</div>
+                  <div style={{ fontSize: Math.round(20 * currentFontScale), fontWeight: 900 }}>{currentSlide.title}</div>
                 </div>
-                <div style={{ fontSize: 12, color: theme.subText, marginTop: 3, marginBottom: 12, paddingLeft: 16 }}>{renderRichText(currentSlide.subtitle, theme.accent)}</div>
+                <div style={{ fontSize: 11.5, color: theme.subText, marginTop: 3, marginBottom: 12, paddingLeft: 16 }}>{renderRichText(currentSlide.subtitle, theme.accent)}</div>
 
-                {/* 【新增】经营数据仪表盘（顶部 3 KPI + 下方左图右文） */}
                 {currentSlide.layout === 'dashboard' && (
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -1279,28 +1376,24 @@ export default function App() {
                         const barColor = idx === 1 ? theme.accent : theme.primary;
                         return (
                           <div key={idx} style={{ background: theme.cardBg, borderLeft: `4px solid ${barColor}`, borderRadius: 8, padding: '8px 12px', border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                            <div style={{ fontSize: 11, color: theme.subText }}>{k.label}</div>
+                            <div style={{ fontSize: 10.5, color: theme.subText }}>{k.label}</div>
                             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 4 }}>
-                              <span style={{ fontSize: 23, fontWeight: 900, color: barColor }}>{k.value}</span>
-                              {k.trend && (
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: hexToRgba(barColor, 0.12), color: barColor }}>
-                                  {k.trend}
-                                </span>
-                              )}
+                              <span style={{ fontSize: 21, fontWeight: 900, color: barColor }}>{k.value}</span>
+                              {k.trend && <span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 7px', borderRadius: 12, background: '#f1f5f9', color: barColor }}>{k.trend}</span>}
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.65fr 1fr', gap: 14, minHeight: 0 }}>
-                      <div style={{ background: theme.cardBg, borderRadius: 8, padding: 10, border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isReversed ? '1fr 1.65fr' : '1.65fr 1fr', gap: 14, minHeight: 0 }}>
+                      <div style={{ order: isReversed ? 2 : 1, background: theme.cardBg, borderRadius: 8, padding: 10, border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <ChartPreview type={currentChartType} data={currentChartData} theme={theme} series1={currentSlide.chartSeriesName} series2={currentSlide.chartSeriesName2} unit={currentSlide.chartUnit} />
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ order: isReversed ? 1 : 2, display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {(currentSlide.items || []).slice(0, 2).map((item, idx) => (
-                          <div key={idx} style={{ flex: 1, background: theme.cardBg, borderTop: `3px solid ${idx === 0 ? theme.primary : theme.accent}`, borderRadius: 8, padding: '10px 12px', border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: idx === 0 ? theme.primary : theme.accent, marginBottom: 4 }}>{item.head}</div>
-                            <div style={{ fontSize: 11.5, lineHeight: 1.5, color: theme.text }}>{renderRichText(item.body, theme.accent)}</div>
+                          <div key={idx} style={{ flex: 1, background: theme.cardBg, borderTop: `3px solid ${idx === 0 ? theme.primary : theme.accent}`, borderRadius: 8, padding: '9px 11px', border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <div style={{ fontSize: Math.round(12.5 * currentFontScale), fontWeight: 800, color: idx === 0 ? theme.primary : theme.accent, marginBottom: 3 }}>{item.head}</div>
+                            <div style={{ fontSize: Math.round(11 * currentFontScale), lineHeight: 1.45, color: theme.text }}>{renderRichText(item.body, theme.accent)}</div>
                           </div>
                         ))}
                       </div>
@@ -1309,12 +1402,12 @@ export default function App() {
                 )}
 
                 {currentSlide.layout === 'table' && (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: '#FFFFFF', borderRadius: 6, overflow: 'hidden', boxShadow: cardShadow }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: Math.round(11.5 * currentFontScale), background: '#FFFFFF', borderRadius: 6, overflow: 'hidden', boxShadow: cardShadow }}>
                       <thead>
                         <tr>
                           {currentTableData.headers.map((h, ci) => (
-                            <th key={ci} style={{ background: theme.primary, color: '#FFFFFF', padding: '8px 10px', textAlign: ci === 0 ? 'left' : 'center', fontWeight: 700, border: '1px solid #cbd5e1' }}>{h}</th>
+                            <th key={ci} style={{ background: theme.primary, color: '#FFFFFF', padding: '7px 9px', textAlign: ci === 0 ? 'left' : 'center', fontWeight: 700, border: '1px solid #cbd5e1' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1323,9 +1416,7 @@ export default function App() {
                           <tr key={ri} style={{ background: ri % 2 === 1 ? '#f1f5f9' : '#ffffff' }}>
                             {row.map((cell, ci) => {
                               const isHL = ci === row.length - 1 || /^\+/.test(String(cell).trim());
-                              return (
-                                <td key={ci} style={{ padding: '7px 10px', textAlign: ci === 0 ? 'left' : 'center', color: isHL ? theme.accent : '#0f172a', fontWeight: isHL || ci === 0 ? 700 : 400, border: '1px solid #e2e8f0' }}>{cell}</td>
-                              );
+                              return <td key={ci} style={{ padding: '6px 9px', textAlign: ci === 0 ? 'left' : 'center', color: isHL ? theme.accent : '#0f172a', fontWeight: isHL || ci === 0 ? 700 : 400, border: '1px solid #e2e8f0' }}>{cell}</td>;
                             })}
                           </tr>
                         ))}
@@ -1333,9 +1424,9 @@ export default function App() {
                     </table>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 'auto' }}>
                       {(currentSlide.items || []).slice(0, 2).map((item, idx) => (
-                        <div key={idx} style={{ background: theme.cardBg, borderLeft: `4px solid ${idx === 0 ? theme.primary : theme.accent}`, borderRadius: 6, padding: '8px 12px', border: '1px solid #e2e8f0' }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 800, color: idx === 0 ? theme.primary : theme.accent }}>{item.head}</div>
-                          <div style={{ fontSize: 11.5, color: theme.text, marginTop: 3, lineHeight: 1.45 }}>{renderRichText(item.body, theme.accent)}</div>
+                        <div key={idx} style={{ background: theme.cardBg, borderLeft: `4px solid ${idx === 0 ? theme.primary : theme.accent}`, borderRadius: 6, padding: '8px 11px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ fontSize: Math.round(12 * currentFontScale), fontWeight: 800, color: idx === 0 ? theme.primary : theme.accent }}>{item.head}</div>
+                          <div style={{ fontSize: Math.round(11 * currentFontScale), color: theme.text, marginTop: 3, lineHeight: 1.4 }}>{renderRichText(item.body, theme.accent)}</div>
                         </div>
                       ))}
                     </div>
@@ -1348,10 +1439,10 @@ export default function App() {
                       const headColor = idx % 2 === 0 ? theme.primary : theme.accent;
                       return (
                         <div key={idx} style={{ background: theme.cardBg, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                          <div style={{ background: headColor, color: '#FFFFFF', padding: '9px 8px', textAlign: 'center', fontSize: 13.5, fontWeight: 800 }}>{item.head}</div>
-                          <div style={{ flex: 1, padding: '10px 10px', fontSize: 11.5, lineHeight: 1.6, color: theme.text, whiteSpace: 'pre-line' }}>{renderRichText(item.body, theme.accent)}</div>
+                          <div style={{ background: headColor, color: '#FFFFFF', padding: '8px 6px', textAlign: 'center', fontSize: Math.round(13 * currentFontScale), fontWeight: 800 }}>{item.head}</div>
+                          <div style={{ flex: 1, padding: '9px 9px', fontSize: Math.round(11 * currentFontScale), lineHeight: 1.55, color: theme.text, whiteSpace: 'pre-line', overflow: 'hidden' }}>{renderRichText(item.body, theme.accent)}</div>
                           {item.badge && (
-                            <div style={{ margin: '0 10px 10px', padding: '4px 6px', background: headColor, color: '#FFFFFF', borderRadius: 20, textAlign: 'center', fontSize: 11, fontWeight: 700 }}>{item.badge}</div>
+                            <div style={{ margin: '0 10px 9px', padding: '4px 6px', background: headColor, color: '#FFFFFF', borderRadius: 20, textAlign: 'center', fontSize: 10.5, fontWeight: 700 }}>{item.badge}</div>
                           )}
                         </div>
                       );
@@ -1360,15 +1451,15 @@ export default function App() {
                 )}
 
                 {currentSlide.layout === 'chart' && (
-                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.65fr 1fr', gap: 16, minHeight: 0 }}>
-                    <div style={{ background: theme.cardBg, borderRadius: 8, padding: 12, border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isReversed ? '1fr 1.65fr' : '1.65fr 1fr', gap: 16, minHeight: 0 }}>
+                    <div style={{ order: isReversed ? 2 : 1, background: theme.cardBg, borderRadius: 8, padding: 12, border: '1px solid #e2e8f0', boxShadow: cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <ChartPreview type={currentChartType} data={currentChartData} theme={theme} series1={currentSlide.chartSeriesName} series2={currentSlide.chartSeriesName2} unit={currentSlide.chartUnit} />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'center' }}>
+                    <div style={{ order: isReversed ? 1 : 2, display: 'flex', flexDirection: 'column', gap: 12, justifyContent: 'center' }}>
                       {(currentSlide.items || []).slice(0, 2).map((item, idx) => (
                         <div key={idx} style={{ flex: 1, background: theme.cardBg, borderTop: `4px solid ${theme.primary}`, borderRadius: 8, padding: 12, boxShadow: cardShadow, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: theme.primary, marginBottom: 4 }}>{item.head}</div>
-                          <div style={{ fontSize: 12, lineHeight: 1.55, color: theme.text }}>{renderRichText(item.body, theme.accent)}</div>
+                          <div style={{ fontSize: Math.round(13.5 * currentFontScale), fontWeight: 700, color: theme.primary, marginBottom: 4 }}>{item.head}</div>
+                          <div style={{ fontSize: Math.round(11.5 * currentFontScale), lineHeight: 1.5, color: theme.text }}>{renderRichText(item.body, theme.accent)}</div>
                         </div>
                       ))}
                     </div>
@@ -1381,8 +1472,8 @@ export default function App() {
                       <div key={idx} style={{ background: theme.cardBg, borderLeft: `4px solid ${theme.primary}`, borderRadius: 8, padding: 14, boxShadow: cardShadow, display: 'flex', gap: 12, alignItems: 'center' }}>
                         <div style={{ fontSize: 26, fontWeight: 900, color: theme.primary }}>0{idx + 1}</div>
                         <div>
-                          <div style={{ fontSize: 15, fontWeight: 700 }}>{item.head}</div>
-                          <div style={{ fontSize: 12, color: theme.subText, marginTop: 3 }}>{renderRichText(item.body, theme.accent)}</div>
+                          <div style={{ fontSize: Math.round(15 * currentFontScale), fontWeight: 700 }}>{item.head}</div>
+                          <div style={{ fontSize: Math.round(12 * currentFontScale), color: theme.subText, marginTop: 3 }}>{renderRichText(item.body, theme.accent)}</div>
                         </div>
                       </div>
                     ))}
@@ -1391,18 +1482,18 @@ export default function App() {
 
                 {currentSlide.layout === 'imageText' && (
                   <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'center', minHeight: 0 }}>
-                    <div style={{ height: '100%', background: theme.cardBg, borderRadius: 8, boxShadow: cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    <div style={{ order: isReversed ? 2 : 1, height: '100%', background: theme.cardBg, borderRadius: 8, boxShadow: cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {currentSlide.image ? <img src={currentSlide.image} alt="配图" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: 13, color: theme.subText }}>请在右侧上传配图</span>}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ order: isReversed ? 1 : 2, display: 'flex', flexDirection: 'column', gap: 14 }}>
                       {(currentSlide.items || []).slice(0, 3).map((item, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 8, background: hexToRgba(theme.primary, 0.14), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <IconSvg id={item.icon || ICONS[idx].id} color={theme.primary} size={18} />
                           </div>
                           <div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>{item.head}</div>
-                            <div style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5, color: theme.subText }}>{renderRichText(item.body, theme.accent)}</div>
+                            <div style={{ fontSize: Math.round(14 * currentFontScale), fontWeight: 700, color: theme.text }}>{item.head}</div>
+                            <div style={{ fontSize: Math.round(11.5 * currentFontScale), marginTop: 3, lineHeight: 1.5, color: theme.subText }}>{renderRichText(item.body, theme.accent)}</div>
                           </div>
                         </div>
                       ))}
@@ -1413,9 +1504,9 @@ export default function App() {
                 {currentSlide.layout === 'compare' && (
                   <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'stretch' }}>
                     {(currentSlide.items || []).slice(0, 2).map((item, idx) => (
-                      <div key={idx} style={{ background: theme.cardBg, borderTop: `4px solid ${idx === 0 ? theme.subText : theme.primary}`, borderRadius: 8, padding: 18, boxShadow: cardShadow, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontSize: 17, fontWeight: 900, color: idx === 0 ? theme.subText : theme.primary, paddingBottom: 8 }}>{item.head}</div>
-                        <div style={{ fontSize: 12.5, lineHeight: 1.75, marginTop: 4, whiteSpace: 'pre-line' }}>{renderRichText(item.body, theme.accent)}</div>
+                      <div key={idx} style={{ background: theme.cardBg, borderTop: `4px solid ${idx === 0 ? theme.subText : theme.primary}`, borderRadius: 8, padding: 16, boxShadow: cardShadow, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <div style={{ fontSize: Math.round(16 * currentFontScale), fontWeight: 900, color: idx === 0 ? theme.subText : theme.primary, paddingBottom: 6 }}>{item.head}</div>
+                        <div style={{ fontSize: Math.round(11.5 * currentFontScale), lineHeight: 1.65, marginTop: 4, whiteSpace: 'pre-line' }}>{renderRichText(item.body, theme.accent)}</div>
                       </div>
                     ))}
                   </div>
@@ -1424,17 +1515,17 @@ export default function App() {
                 {['cards', 'timeline', 'metrics'].includes(currentSlide.layout) && (
                   <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignItems: 'center' }}>
                     {(currentSlide.items || []).slice(0, 3).map((item, idx) => (
-                      <div key={idx} style={{ background: currentSlide.layout === 'timeline' ? 'transparent' : theme.cardBg, borderTop: currentSlide.layout === 'cards' ? `4px solid ${theme.primary}` : currentSlide.layout === 'metrics' ? `4px solid ${theme.accent}` : 'none', boxShadow: currentSlide.layout === 'timeline' ? 'none' : cardShadow, borderRadius: 8, padding: 16, height: '84%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: currentSlide.layout === 'metrics' ? 'center' : 'flex-start', textAlign: currentSlide.layout === 'cards' ? 'left' : 'center' }}>
+                      <div key={idx} style={{ background: currentSlide.layout === 'timeline' ? 'transparent' : theme.cardBg, borderTop: currentSlide.layout === 'cards' ? `4px solid ${theme.primary}` : currentSlide.layout === 'metrics' ? `4px solid ${theme.accent}` : 'none', boxShadow: currentSlide.layout === 'timeline' ? 'none' : cardShadow, borderRadius: 8, padding: 14, height: '88%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: currentSlide.layout === 'metrics' ? 'center' : 'flex-start', textAlign: currentSlide.layout === 'cards' ? 'left' : 'center', overflow: 'hidden' }}>
                         {currentSlide.layout === 'cards' && (
-                          <div style={{ width: 38, height: 38, borderRadius: 8, background: hexToRgba(theme.primary, 0.14), display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                            <IconSvg id={item.icon || ICONS[idx].id} color={theme.primary} size={20} />
+                          <div style={{ width: 34, height: 34, borderRadius: 8, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                            <IconSvg id={item.icon || ICONS[idx].id} color={theme.primary} size={18} />
                           </div>
                         )}
                         {currentSlide.layout === 'timeline' && (
                           <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.accent, color: '#fff', fontWeight: 'bold', lineHeight: '28px', margin: '0 auto 10px', fontSize: 13 }}>0{idx + 1}</div>
                         )}
-                        <div style={{ fontSize: currentSlide.layout === 'metrics' ? 34 : 16, fontWeight: 900, color: currentSlide.layout === 'metrics' ? theme.accent : theme.text, marginBottom: 6 }}>{item.head}</div>
-                        <div style={{ fontSize: 12, lineHeight: 1.6, color: theme.subText, whiteSpace: 'pre-line' }}>{renderRichText(item.body, theme.accent)}</div>
+                        <div style={{ fontSize: currentSlide.layout === 'metrics' ? Math.round(32 * currentFontScale) : Math.round(15 * currentFontScale), fontWeight: 900, color: currentSlide.layout === 'metrics' ? theme.accent : theme.text, marginBottom: 6 }}>{item.head}</div>
+                        <div style={{ fontSize: Math.round(11 * currentFontScale), lineHeight: 1.55, color: theme.subText, whiteSpace: 'pre-line' }}>{renderRichText(item.body, theme.accent)}</div>
                       </div>
                     ))}
                   </div>
@@ -1443,8 +1534,8 @@ export default function App() {
             )}
 
             {showFooter && isContentSlide && (
-              <div style={{ position: 'absolute', left: '5.5%', right: '5.5%', bottom: '2.5%', borderTop: `1px solid ${hexToRgba(theme.subText, 0.22)}`, paddingTop: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10 }}>
-                <span style={{ color: theme.subText }}>{projectName || '商业演示方案'} · CONFIDENTIAL</span>
+              <div style={{ position: 'absolute', left: '5.5%', right: '5.5%', bottom: '2.5%', borderTop: '1px solid #cbd5e1', paddingTop: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10 }}>
+                <span style={{ color: theme.subText }}>{sourceNote || `${projectName || '商业演示方案'} · CONFIDENTIAL`}</span>
                 <span style={{ color: theme.primary, fontWeight: 'bold' }}>{String(currentIdx + 1).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}</span>
               </div>
             )}
@@ -1452,7 +1543,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* 右侧栏：填空编辑 + KPI/图表/表格编辑器 + 导出 */}
+      {/* 右侧栏：填空编辑 + 单页微调 + Excel粘贴 + 演讲稿备注 + 导出 */}
       <div style={{ width: 350, background: '#1e293b', borderLeft: '1px solid #334155', padding: 14, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
         <div style={{ fontWeight: 'bold', fontSize: 14 }}>当前页填空编辑</div>
 
@@ -1462,6 +1553,21 @@ export default function App() {
             {LAYOUTS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </label>
+
+        {/* 单页排版微调：字号缩放 + 左右镜像 */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 8px', background: '#0f172a', borderRadius: 6, border: '1px solid #334155', fontSize: 11 }}>
+          <span style={{ color: '#94a3b8' }}>本页字号：</span>
+          {[0.85, 1, 1.1].map((sc) => (
+            <button key={sc} onClick={() => updateSlide({ fontScale: sc })} style={{ padding: '2px 7px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer', background: currentFontScale === sc ? '#0284c7' : '#1e293b', color: '#fff' }}>
+              {Math.round(sc * 100)}%
+            </button>
+          ))}
+          {supportsMirror(currentSlide.layout) && (
+            <button onClick={() => updateSlide({ reverseLayout: !isReversed })} style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: 11, borderRadius: 4, border: '1px solid #38bdf8', cursor: 'pointer', background: isReversed ? '#0284c7' : 'transparent', color: '#fff' }}>
+              ⇄ 左右互换
+            </button>
+          )}
+        </div>
 
         <label style={{ fontSize: 12, color: '#94a3b8' }}>
           主标题：
@@ -1473,7 +1579,6 @@ export default function App() {
           <input value={currentSlide.subtitle} onChange={(e) => updateSlide({ subtitle: e.target.value })} style={{ width: '100%', marginTop: 4, padding: 6, background: '#0f172a', color: '#fff', border: '1px solid #475569', borderRadius: 4, boxSizing: 'border-box' }} />
         </label>
 
-        {/* 【新增】仪表盘顶部 3 张 KPI 编辑器 */}
         {currentSlide.layout === 'dashboard' && (
           <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, border: '1px solid #f59e0b', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ fontSize: 12, fontWeight: 'bold', color: '#fbbf24' }}>🏆 顶部 3 项核心 KPI 指标</div>
@@ -1487,16 +1592,24 @@ export default function App() {
           </div>
         )}
 
-        {/* 【升级】5 种多系列图表编辑器 */}
         {showChartEditor && (
           <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, border: '1px solid #38bdf8', display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <div style={{ fontSize: 12, fontWeight: 'bold', color: '#38bdf8' }}>📊 多系列图表配置（原生导出）</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 'bold', color: '#38bdf8' }}>📊 多系列图表配置</span>
+              <button onClick={() => setShowExcelPaste((v) => !v)} style={{ padding: '2px 7px', fontSize: 10, background: '#0f766e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>📋 粘贴 Excel</button>
+            </div>
+            {showExcelPaste && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 6, background: '#1e293b', borderRadius: 4 }}>
+                <textarea rows={3} value={excelRawText} onChange={(e) => setExcelRawText(e.target.value)} placeholder="直接从 Excel 复制 2~3 列粘贴到这里..." style={{ width: '100%', fontSize: 11, background: '#0f172a', color: '#4ade80', border: '1px solid #334155', borderRadius: 4, boxSizing: 'border-box' }} />
+                <button onClick={() => handleApplyExcelPaste('chart')} style={{ padding: 4, fontSize: 11, background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>确认导入图表数据</button>
+              </div>
+            )}
             <select value={currentChartType} onChange={(e) => updateSlide({ chartType: e.target.value })} style={{ width: '100%', padding: 5, background: '#1e293b', color: '#fff', border: '1px solid #475569', borderRadius: 4, fontSize: 12 }}>
               {CHART_TYPES.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
             </select>
             <div style={{ display: 'flex', gap: 5 }}>
-              <input value={currentSlide.chartUnit || ''} onChange={(e) => updateSlide({ chartUnit: e.target.value })} placeholder="单位(如 单位：亿元)" style={{ flex: 1, minWidth: 0, padding: 4, background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }} />
-              <input value={currentSlide.chartSeriesName || ''} onChange={(e) => updateSlide({ chartSeriesName: e.target.value })} placeholder="系列1名称" style={{ flex: 1, minWidth: 0, padding: 4, background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }} />
+              <input value={currentSlide.chartUnit || ''} onChange={(e) => updateSlide({ chartUnit: e.target.value })} placeholder="单位(如 亿元)" style={{ flex: 1, minWidth: 0, padding: 4, background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }} />
+              <input value={currentSlide.chartSeriesName || ''} onChange={(e) => updateSlide({ chartSeriesName: e.target.value })} placeholder="系列1" style={{ flex: 1, minWidth: 0, padding: 4, background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }} />
               {isMultiSeries(currentChartType) && (
                 <input value={currentSlide.chartSeriesName2 ?? ''} onChange={(e) => updateSlide({ chartSeriesName2: e.target.value })} placeholder="系列2(留空隐藏)" style={{ flex: 1, minWidth: 0, padding: 4, background: '#1e293b', color: '#f87171', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }} />
               )}
@@ -1518,13 +1631,20 @@ export default function App() {
         {currentSlide.layout === 'table' && (
           <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, border: '1px solid #38bdf8', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 'bold', color: '#38bdf8' }}>📋 表格数据（原生导出）</span>
+              <span style={{ fontSize: 12, fontWeight: 'bold', color: '#38bdf8' }}>📋 表格数据</span>
               <div style={{ display: 'flex', gap: 4 }}>
+                <button onClick={() => setShowExcelPaste((v) => !v)} style={{ padding: '2px 6px', fontSize: 10, background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>粘贴Excel</button>
                 <button onClick={addTableRow} style={{ padding: '2px 6px', fontSize: 11, background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>+行</button>
                 <button onClick={addTableCol} style={{ padding: '2px 6px', fontSize: 11, background: '#0f766e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>+列</button>
                 <button onClick={removeTableCol} style={{ padding: '2px 6px', fontSize: 11, background: '#475569', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>-列</button>
               </div>
             </div>
+            {showExcelPaste && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 6, background: '#1e293b', borderRadius: 4 }}>
+                <textarea rows={3} value={excelRawText} onChange={(e) => setExcelRawText(e.target.value)} placeholder="直接从 Excel 复制表格粘贴到这里（首行自动作表头）..." style={{ width: '100%', fontSize: 11, background: '#0f172a', color: '#4ade80', border: '1px solid #334155', borderRadius: 4, boxSizing: 'border-box' }} />
+                <button onClick={() => handleApplyExcelPaste('table')} style={{ padding: 4, fontSize: 11, background: '#059669', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>确认导入表格</button>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 3 }}>
               {currentTableData.headers.map((h, ci) => (
                 <input key={ci} value={h} onChange={(e) => updateTableHeader(ci, e.target.value)} style={{ flex: 1, minWidth: 0, padding: 4, background: '#1e3a5f', color: '#fff', border: '1px solid #334155', borderRadius: 3, fontSize: 11, fontWeight: 'bold' }} />
@@ -1543,7 +1663,7 @@ export default function App() {
 
         {currentSlide.layout === 'imageText' && (
           <div style={{ padding: 10, background: '#0f172a', borderRadius: 6, border: '1px dashed #38bdf8', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 'bold', color: '#38bdf8' }}>左侧配图（合规防踩坑）</div>
+            <div style={{ fontSize: 12, fontWeight: 'bold', color: '#38bdf8' }}>配图上传（合规防踩坑）</div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => slideImgInputRef.current.click()} style={{ flex: 1, padding: '6px', fontSize: 12, background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>{currentSlide.image ? '更换配图' : '+ 上传本地图片'}</button>
               {currentSlide.image && <button onClick={() => updateSlide({ image: '' })} style={{ padding: '6px 10px', fontSize: 12, background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 4, cursor: 'pointer' }}>清除</button>}
@@ -1554,7 +1674,7 @@ export default function App() {
 
         {visibleItemCount > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>💡 用 <code style={{ color: '#f87171' }}>**数字或重点**</code> 包裹可自动加粗标红</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>💡 用 <code style={{ color: '#f87171' }}>**重点**</code> 包裹可自动加粗标红</div>
             {Array.from({ length: visibleItemCount }).map((_, idx) => {
               const item = (currentSlide.items && currentSlide.items[idx]) || { head: '', body: '', icon: ICONS[idx % ICONS.length].id, badge: '' };
               return (
@@ -1577,6 +1697,12 @@ export default function App() {
           </div>
         )}
 
+        {/* 演讲者备注 / 答辩逐字稿 */}
+        <label style={{ fontSize: 11, color: '#94a3b8' }}>
+          🎤 本页演讲者备注 / 答辩逐字稿（原生写入 PPT 备注栏）：
+          <textarea rows={2} value={currentSlide.notes || ''} onChange={(e) => updateSlide({ notes: e.target.value })} placeholder="输入本页口播讲稿（选填）..." style={{ width: '100%', marginTop: 4, padding: 5, background: '#0f172a', color: '#cbd5e1', border: '1px solid #334155', borderRadius: 4, fontSize: 11, boxSizing: 'border-box' }} />
+        </label>
+
         <div style={{ marginTop: 'auto', borderTop: '1px solid #334155', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 7 }}>
           <input value={watermarkText} onChange={(e) => setWatermarkText(e.target.value)} placeholder="防跑单水印文字" style={{ width: '100%', padding: 5, background: '#0f172a', color: '#fca5a5', border: '1px solid #475569', borderRadius: 4, fontSize: 11, boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', gap: 6 }}>
@@ -1591,9 +1717,40 @@ export default function App() {
         </div>
       </div>
 
+      {/* 全套一键交付体检弹窗 */}
+      {showAuditModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', background: '#1e293b', border: '1px solid #38bdf8', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, color: '#f8fafc' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 'bold', color: '#38bdf8' }}>🛡️ 全套交付前合规与排版体检（共 {slides.length} 页）</div>
+              <button onClick={() => setShowAuditModal(false)} style={{ background: '#334155', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}>关闭</button>
+            </div>
+            {totalIssueCount === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', background: '#052e16', color: '#4ade80', borderRadius: 8, fontWeight: 'bold' }}>
+                ✅ 全部 {slides.length} 页均已通过字数、敏感词与占位符检查，可直接交付！
+              </div>
+            ) : (
+              fullDeckAudits.filter((a) => a.warnings.length > 0).map((a) => (
+                <div key={a.idx} style={{ padding: 10, background: '#0f172a', borderRadius: 8, border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: 13 }}>第 {a.idx + 1} 页：{a.title || '未命名'}</strong>
+                    <button onClick={() => { setCurrentIdx(a.idx); setShowAuditModal(false); }} style={{ padding: '3px 10px', fontSize: 11, background: '#0284c7', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>去修改 →</button>
+                  </div>
+                  {a.warnings.map((w, wi) => (
+                    <div key={wi} style={{ fontSize: 11.5, color: w.level === 'danger' ? '#fca5a5' : w.level === 'warn' ? '#fde047' : '#93c5fd' }}>
+                      {w.level === 'danger' ? '🚨 ' : w.level === 'warn' ? '⚠️ ' : '💡 '}{w.msg}
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {showTemplateModal && (
         <TemplateModal
-          config={{ themeId, customPrimary, fontFamily, brandLogo, showFooter, coverBg, contentBg }}
+          config={{ themeId, customPrimary, fontFamily, brandLogo, showFooter, coverBg, contentBg, headerTag, sourceNote }}
           onClose={() => setShowTemplateModal(false)}
           onApply={(patch, msg) => {
             if (patch.themeId !== undefined) setThemeId(patch.themeId);
@@ -1603,6 +1760,8 @@ export default function App() {
             if (patch.showFooter !== undefined) setShowFooter(patch.showFooter);
             if (patch.coverBg !== undefined) setCoverBg(patch.coverBg);
             if (patch.contentBg !== undefined) setContentBg(patch.contentBg);
+            if (patch.headerTag !== undefined) setHeaderTag(patch.headerTag);
+            if (patch.sourceNote !== undefined) setSourceNote(patch.sourceNote);
             if (msg) showToast(msg);
           }}
         />
@@ -1612,7 +1771,7 @@ export default function App() {
         <DocToPptModal
           onClose={() => setShowDocModal(false)}
           onGenerate={(newSlides, newName) => {
-            setSlides(newSlides);
+            commitSlides(newSlides);
             setProjectName(newName);
             setCurrentIdx(0);
             setShowDocModal(false);
